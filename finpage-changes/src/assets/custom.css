@@ -1,0 +1,1055 @@
+:root {
+  --background-color: #f4f4f4;
+  --banner-color: #0a213b;
+  --banner2-color: #1e3a5a;
+  --content-color: #859db3;
+  --text-color: #859db3;
+  --accent-color: #004172;
+  --border-color: #bed6eb;
+  --header-color: #7a7a7a;
+  --element-color: #1f8c44;
+  --text-white-color: white;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  background-color: var(--background-color);
+  font-family: Arial, sans-serif;
+  font-size: 1.2rem;
+  font-weight: 300;
+  margin: 0;
+  padding: 0;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+body {
+  color: var(--text-color);
+}
+
+::-webkit-scrollbar {
+  width: 12px;
+}
+
+::-webkit-scrollbar-track {
+  background-color: #d6e4ea;
+}
+
+::-webkit-scrollbar-thumb {
+  background-color: #3a405a;
+}
+
+.graph {
+  width: 100%;
+  min-width: 0;
+}
+
+.js-plotly-plot,
+.plot-container,
+.svg-container {
+  width: 100% !important;
+  max-width: 100%;
+}
+
+.loading-spinner {
+  background-color: #f9f9f9;
+  z-index: 1000;
+}
+
+.sliderRow,
+.sliderinput {
+  min-width: 300px;
+  text-align: center;
+}
+
+.slider .rc-slider-tooltip-inner {
+  background-color: var(--accent-color);
+  color: black;
+}
+
+.buttonDefinitions {
+  background-color: var(--text-white-color);
+  color: var(--text-color);
+  width: 5.3rem;
+  height: 2rem;
+  border-radius: 10px;
+  border: 1px solid var(--border-color);
+}
+
+.buttonDefinitions:active {
+  box-shadow: 0 2px 2px rgba(0, 0, 0, 0.3);
+}
+
+.buttonDefinitions:hover {
+  background-color: var(--border-color);
+  cursor: pointer;
+  border: 1px solid var(--border-color);
+  font-weight: bold;
+}
+
+.parent-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  border-radius: 10px;
+}
+
+.parent-container2 {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  width: 100%;
+  max-width: 100%;
+  padding-inline: 12px;
+}
+
+.parent-row {
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  justify-content: center;
+  width: 100%;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.us-tab,
+.us-tab .Tab__label {
+  background: url("/assets/us.jpg") no-repeat 10px center;
+  padding-left: 50px !important;
+  background-size: 33px 20px;
+  border-bottom-left-radius: 10px;
+  border-top-left-radius: 10px;
+  margin-right: 30px;
+}
+
+.scan-tab,
+.scan-tab .Tab__label {
+  background:
+    url("/assets/R.jpg") no-repeat 20px center,
+    url("/assets/dk.png") no-repeat 60px center,
+    url("/assets/sweden.jpg") no-repeat 100px center;
+  padding-left: 140px !important;
+  background-size: 28px 19px, 28px 25px, 27px 30px;
+  border-bottom-right-radius: 10px;
+  border-top-right-radius: 10px;
+}
+
+.tabs-country {
+  margin-top: 20px;
+  margin-bottom: 20px;
+  margin-left: 100px;
+  margin-right: 100px;
+  text-align: center;
+  border-bottom-right-radius: 20%;
+  gap: 20px;
+}
+
+.dash-spreadsheet-container,
+.main-svg {
+  border-radius: 10px;
+}
+
+.card-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background-color: var(--content-color);
+  color: var(--text-color);
+  border-radius: 10px;
+  border: 1px solid var(--accent-color);
+  margin-top: 5px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  padding: 20px;
+}
+
+.card-item > * {
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  overflow-wrap: break-word;
+}
+
+.card-itemnew {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background-color: var(--content-color);
+  color: var(--text-color);
+  border-radius: 10px;
+  border: 1px solid var(--accent-color);
+  margin-top: 5px;
+}
+
+.custom-dropdown .Select-control {
+  border: 2px solid red;
+  border-radius: 75vw;
+}
+
+.custom-dropdown .Select-control:hover,
+.custom-dropdown .Select-control.is-focused,
+.custom-dropdown .Select-control.is-open {
+  border-color: blue;
+}
+
+.tabs-line {
+  display: flex;
+  flex-direction: row;
+  justify-content: normal;
+  align-items: center;
+  background-color: var(--banner-color);
+  color: var(--text-white-color);
+  padding: 15px;
+  margin-bottom: 16px;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  transition: transform 0.2s;
+  gap: 25px;
+  border-radius: 20px;
+}
+
+.tabs-line:hover {
+  transform: translateY(-5px);
+}
+
+.headers {
+  color: var(--header-color);
+  font-family: Arial, sans-serif;
+  font-weight: 300;
+  text-decoration: none;
+}
+
+.tabheaders {
+  color: var(--header-color);
+  font-family: Arial, sans-serif;
+  font-style: normal;
+  font-weight: normal;
+  font-size: 1.5rem;
+}
+
+.banner-row {
+  display: flex;
+  flex-direction: row;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 25px;
+}
+
+.headerstab {
+  display: block;
+  padding: 0.5rem 1rem;
+  font-family: Arial, sans-serif;
+  font-style: normal;
+  font-weight: normal;
+  align-items: center;
+}
+
+.normal-text {
+  color: var(--text-color);
+  font-family: Arial, sans-serif;
+  font-weight: 300;
+}
+
+.headerfinvest {
+  font-weight: 300;
+  font-size: 3.5rem;
+  line-height: 1.05;
+  margin: 0;
+}
+
+.headerbanner {
+  background-color: var(--banner-color);
+  min-height: 100px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  top: 0;
+}
+
+.headerbanner .dropdown-menu {
+  z-index: 10000;
+}
+
+#tax-dropdown-button {
+  z-index: 10002;
+}
+
+.secondary-menu {
+  max-height: 50px;
+  background-color: var(--banner2-color) !important;
+  overflow: hidden;
+  transition: max-height 0.7s ease-in-out;
+  text-align: center;
+  gap: 15px;
+}
+
+.secondary-menu[style*="display: block"] {
+  max-height: 200px;
+}
+
+.secondary-menu-container {
+  background-color: var(--banner2-color) !important;
+  min-height: 50px;
+  display: flex;
+  flex-direction: row;
+  justify-content: center;
+  position: absolute;
+  top: 100px;
+  width: 100%;
+  z-index: 12000;
+}
+
+.finvest-menu-container {
+  background-color: white !important;
+  min-height: 50px;
+  display: flex;
+  flex-direction: row;
+  justify-content: center;
+  position: absolute;
+  top: 100px;
+  width: 100%;
+  z-index: 12000;
+}
+
+.finvest-dropdown-button {
+  width: 10px;
+  height: 12px;
+  color: grey;
+}
+
+.fadeinelement {
+  opacity: 0;
+  animation: fade-in 3s ease-in forwards;
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 0.85;
+  }
+}
+
+.cardcontact {
+  font-size: 24px;
+}
+
+.first-word {
+  color: var(--header-color);
+}
+
+.second-word {
+  color: #3db569;
+}
+
+.DataTable {
+  border-radius: 10px;
+}
+
+.homecard {
+  max-width: 60vw;
+  margin: 0 auto;
+  background-color: white;
+  padding-bottom: 40px;
+  opacity: 0.8;
+  border-radius: 15px;
+}
+
+.finvesteconomy {
+  margin: 0 auto;
+  background-color: white;
+  padding-bottom: 40px;
+}
+
+.notetext {
+  display: none;
+}
+
+.resultsFinvest {
+  display: block;
+  max-width: 80vw;
+}
+
+.informationtext {
+  font-weight: bold;
+  text-align: center;
+  display: none;
+}
+
+.footer {
+  display: flex;
+  padding-bottom: 30px;
+  left: 0;
+  width: 100%;
+  height: fit-content;
+  background: linear-gradient(to right, #6c9dcf 100%, var(--accent-color) 0%);
+}
+
+.footer-left {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  justify-content: right;
+  text-align: right;
+  width: 100%;
+  padding-right: 60px;
+}
+
+.rc-slider-handle {
+  color: var(--accent-color);
+  width: 20px;
+  height: 20px;
+  top: 2px;
+}
+
+.buttonMenu {
+  background-image: url("data:image/svg+xml;utf8,");
+  background-color: transparent;
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: 50%;
+  padding-right: 0;
+  height: 40px;
+  width: 50px;
+  border-width: 0;
+}
+
+.buttonMenu:hover {
+  background-color: transparent;
+  cursor: pointer;
+  border-radius: 0;
+  border-color: white;
+  border-width: 0.01px;
+}
+
+.dropdownmenu .Select-arrow {
+  display: none;
+}
+
+.dropdownmenu .Select-arrow-zone {
+  background-image: url("data:image/svg+xml;utf8,");
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: 50%;
+  padding-right: 0;
+}
+
+.headers_finvest_menu {
+  display: inline-block;
+}
+
+.page-intros {
+  display: flex;
+  justify-content: center;
+  align-content: center;
+  flex-wrap: wrap;
+  gap: 20px;
+}
+
+.page-optimal {
+  display: flex;
+  justify-content: center;
+  align-content: center;
+  flex-wrap: wrap;
+  gap: 30px;
+  padding-top: 30px;
+  width: 90%;
+  margin-right: auto;
+  margin-left: auto;
+}
+
+.page-intro {
+  width: 45%;
+  margin-bottom: 16px;
+  max-width: 280px;
+}
+
+.page-intro h2 {
+  font-size: 2rem;
+  margin-bottom: 10px;
+}
+
+.page-intro p {
+  font-size: 1rem;
+  line-height: 1.2;
+}
+
+.beforediv {
+  height: 100px;
+}
+
+.homewelcome {
+  display: flex;
+  justify-content: space-between;
+}
+
+/* Home page */
+.home-hero-section {
+  padding: 120px 16px 40px;
+}
+
+.home-intro-grid {
+  width: 100%;
+  max-width: 980px;
+  gap: 16px;
+}
+
+.home-page-intro {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  min-height: 170px;
+  max-width: 290px;
+  width: min(290px, 100%);
+}
+
+.home-card-title-wrap {
+  text-align: center;
+  margin-bottom: 8px;
+}
+
+.home-card-title-link {
+  text-decoration: none;
+  line-height: 1.1;
+}
+
+.home-card-text {
+  margin: 0;
+}
+
+.home-card-text p {
+  margin: 0;
+  text-align: center;
+  line-height: 1.35;
+  font-size: 1rem;
+}
+
+/* Economy page */
+.economy-layout-shell {
+  width: 100%;
+  max-width: 100%;
+  padding-inline: 0;
+}
+
+.economy-page {
+  width: 100%;
+  max-width: 1440px;
+  padding: 16px 12px 32px;
+  gap: 16px;
+}
+
+.economy-title-row {
+  margin: 8px 0 0;
+  gap: 12px;
+  text-align: center;
+}
+
+.economy-accent-title {
+  color: rgba(61, 181, 105);
+}
+
+.economy-description {
+  max-width: 900px;
+  width: 100%;
+  text-align: center;
+  font-size: 1.1rem;
+  line-height: 1.5;
+  margin: 0 auto;
+  padding: 0 12px;
+}
+
+.economy-update-text {
+  text-align: center;
+  font-size: 0.85rem;
+  color: gray;
+  min-height: 20px;
+}
+
+.economy-controls {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+  width: 100%;
+  margin: 0 auto;
+}
+
+.economy-refresh-btn {
+  background-color: var(--accent-color);
+  color: white;
+  border: 1px solid var(--accent-color);
+  border-radius: 10px;
+  padding: 10px 16px;
+  min-height: 44px;
+  font-size: 0.95rem;
+  cursor: pointer;
+}
+
+.economy-refresh-btn:hover {
+  filter: brightness(0.95);
+}
+
+.economy-radio {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  color: var(--header-color);
+}
+
+.economy-divider {
+  width: min(100%, 1200px);
+  margin: 8px auto 4px;
+}
+
+.economy-row {
+  width: 100%;
+  align-items: stretch;
+}
+
+.economy-graph-wrap {
+  flex: 1 1 520px;
+  min-width: 0;
+  display: flex;
+}
+
+.economy-graph-wrap-full {
+  flex-basis: 100%;
+}
+
+.economy-graph {
+  width: 100%;
+  min-width: 0;
+  border-radius: 12px;
+  overflow: hidden;
+  background: transparent;
+}
+
+.economy-graph .js-plotly-plot,
+.economy-graph .plot-container,
+.economy-graph .svg-container {
+  width: 100% !important;
+}
+
+.economy-controls-shell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+}
+
+.economy-market-radio {
+  font-size: 1.05rem;
+  font-weight: 600;
+  gap: 16px;
+}
+
+.economy-subheading {
+  width: 100%;
+  text-align: center;
+  font-weight: 600;
+  color: var(--header-color);
+  margin-bottom: 6px;
+  font-size: 0.95rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.economy-empty-note {
+  width: 100%;
+  text-align: center;
+  padding: 24px 12px;
+  color: var(--header-color);
+  font-size: 0.95rem;
+}
+
+.economy-stat-row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 12px;
+  width: 100%;
+  margin: 4px auto 8px;
+}
+
+.economy-stat-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  flex: 1 1 150px;
+  min-width: 130px;
+  max-width: 220px;
+  padding: 14px 12px;
+  border-radius: 12px;
+  background: white;
+  border: 1px solid var(--border-color);
+  box-shadow: 0px 2px 6px rgba(0, 0, 0, 0.06);
+}
+
+.economy-stat-label {
+  font-size: 0.78rem;
+  color: var(--header-color);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  text-align: center;
+}
+
+.economy-stat-value {
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: var(--accent-color);
+}
+
+.comparison-controls {
+  gap: 20px;
+}
+
+.comparison-toggle-group {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+}
+
+.comparison-toggle-btn {
+  border-radius: 999px !important;
+  border-color: var(--border-color) !important;
+  color: var(--accent-color) !important;
+  font-weight: 600;
+  padding: 8px 18px;
+}
+
+.comparison-toggle-btn.active {
+  background-color: var(--accent-color) !important;
+  border-color: var(--accent-color) !important;
+  color: white !important;
+}
+
+@media (max-width: 768px) {
+  .economy-stat-card {
+    min-width: 42%;
+    padding: 12px 10px;
+  }
+
+  .economy-stat-value {
+    font-size: 1.2rem;
+  }
+}
+
+@media (max-width: 1400px) {
+  .headerfinvest {
+    font-size: 3rem;
+  }
+
+  .tabheaders {
+    font-size: 2rem;
+  }
+
+  .headerstab,
+  .body,
+  .normal-text,
+  .tabs-line {
+    font-size: 18px;
+  }
+
+  .plotly-title {
+    font-size: 24px;
+  }
+}
+
+@media (max-width: 1000px) {
+  .headerfinvest {
+    font-size: 2.4rem;
+  }
+
+  .homecard {
+    max-width: 90vw;
+  }
+
+  .banner-row {
+    gap: 14px;
+  }
+
+  .tabs-country {
+    margin-left: 24px;
+    margin-right: 24px;
+  }
+}
+
+@media (max-width: 950px) {
+  .parent-container2 {
+    padding-top: 20px;
+    width: 100%;
+  }
+
+  .finvest-menu-container {
+    top: 524px;
+  }
+
+  .finvest-dropdown-button,
+  .tax-dropdown-button {
+    zoom: 2;
+    margin-left: 5px;
+    color: grey;
+    margin-top: 9px;
+  }
+
+  .homewelcome {
+    flex-wrap: nowrap;
+    justify-content: center;
+  }
+
+  .scan-tab,
+  .us-tab {
+    zoom: 1.5;
+    flex-wrap: wrap;
+  }
+
+  .headers_finvest_menu {
+    display: none;
+  }
+
+  #output_div2 {
+    display: block;
+  }
+
+  .headerfinvest {
+    font-size: 2rem;
+    margin: unset;
+  }
+
+  .banner-row {
+    flex-direction: column;
+    flex-wrap: wrap;
+    justify-content: flex-start;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .page-intros {
+    flex-direction: column;
+    justify-content: normal;
+  }
+
+  .rc-slider-handle {
+    width: 70px;
+    height: 70px;
+    top: -20px;
+  }
+
+  .slider {
+    margin-top: 40px;
+    margin-bottom: 60px;
+  }
+
+  .slider-row {
+    margin-top: 5px;
+  }
+
+  .finvesteconomy {
+    font-size: 18px;
+    max-width: 100vw;
+  }
+
+  .resultsFinvest {
+    display: none;
+  }
+
+  .informationtext {
+    display: block;
+  }
+
+  .parent-row {
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: center;
+    width: 100%;
+  }
+
+  .headerstab,
+  .body,
+  .normal-text {
+    font-size: 22px;
+    max-width: 100vw;
+  }
+
+  .tabs-line {
+    font-size: 22px;
+    max-width: 100vw;
+    flex-direction: column;
+  }
+
+  .tabheaders {
+    font-size: 2rem;
+  }
+
+  .graph {
+    width: 100%;
+  }
+
+  .plotly-title {
+    font-size: 24px;
+  }
+
+  .notetext {
+    color: white;
+    display: block;
+    background-color: black;
+    text-align: center;
+  }
+
+  .homecard {
+    max-width: 90vw;
+  }
+
+  .headerbanner {
+    height: fit-content;
+  }
+
+  .home-hero-section {
+    padding: 110px 10px 28px;
+    min-height: auto !important;
+  }
+
+  .home-intro-grid {
+    width: 100%;
+    gap: 12px;
+  }
+
+  .home-page-intro,
+  .page-intro.home-page-intro {
+    width: 92vw;
+    max-width: 420px;
+    min-height: 150px;
+    margin-bottom: 12px;
+    padding: 14px 16px !important;
+  }
+
+  .home-card-title-wrap {
+    margin-bottom: 6px;
+  }
+
+  .home-card-title-link {
+    width: 100% !important;
+    font-size: 1.65rem !important;
+  }
+
+  .home-card-text p {
+    font-size: 0.98rem;
+    line-height: 1.3;
+  }
+
+  .economy-page {
+    padding: 12px 6px 24px;
+  }
+
+  .economy-title-row {
+    gap: 6px;
+  }
+
+  .economy-description {
+    font-size: 1rem;
+    max-width: 100%;
+  }
+
+  .economy-controls {
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .economy-radio {
+    width: 100%;
+  }
+
+  .economy-graph-wrap {
+    flex: 1 1 100%;
+    width: 100%;
+  }
+}
+
+@media (max-width: 576px) {
+  html,
+  body {
+    font-size: 1rem;
+  }
+
+  .beforediv {
+    height: 88px;
+  }
+
+  .headerbanner {
+    min-height: 88px;
+  }
+
+  .headerfinvest {
+    font-size: 1.65rem;
+    text-align: center;
+  }
+
+  .normal-text,
+  .headerstab,
+  .body {
+    font-size: 1rem;
+  }
+
+  .home-hero-section {
+    padding: 100px 8px 24px;
+  }
+
+  .home-page-intro,
+  .page-intro.home-page-intro {
+    width: 94vw;
+    max-width: none;
+    min-height: 140px;
+    border-radius: 10px;
+  }
+
+  .home-card-title-link {
+    font-size: 1.45rem !important;
+  }
+
+  .home-card-text p {
+    font-size: 0.95rem;
+  }
+
+  .economy-description {
+    font-size: 0.98rem;
+    padding: 0 6px;
+  }
+
+  .economy-refresh-btn {
+    width: 100%;
+    max-width: 280px;
+  }
+
+  .economy-row {
+    gap: 10px;
+  }
+}
+
+/* custom.css for commute page */
+.commute-page,
+.commute-page iframe {
+    width: 100%;
+}
+
+.commute-page iframe {
+    height: calc(100vh - 80px);
+    border: none;
+}
