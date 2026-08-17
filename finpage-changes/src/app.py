@@ -89,16 +89,6 @@ nav_links = dbc.Nav(
             ),
             className="menuitemtop",
         ),
-        dbc.NavItem(
-            dbc.NavLink(
-                "Comparison",
-                href="/comparison",
-                className="top-nav-link",
-                style=NAV_LINK_STYLE,
-                active="exact",
-            ),
-            className="menuitemtop",
-        ),
     ],
     id="output_div2",
     className="top-nav ms-auto",

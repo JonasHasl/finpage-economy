@@ -1,14 +1,15 @@
 :root {
-  --background-color: #f4f4f4;
-  --banner-color: #0a213b;
-  --banner2-color: #1e3a5a;
-  --content-color: #859db3;
-  --text-color: #859db3;
-  --accent-color: #004172;
-  --border-color: #bed6eb;
-  --header-color: #7a7a7a;
-  --element-color: #1f8c44;
-  --text-white-color: white;
+  --background-color: hsl(222, 47%, 6%);
+  --banner-color: hsl(222, 42%, 9%);
+  --banner2-color: hsl(222, 34%, 13%);
+  --content-color: hsl(215, 18%, 60%);
+  --text-color: hsl(215, 18%, 60%);
+  --accent-color: hsl(199, 89%, 55%);
+  --border-color: hsl(222, 30%, 16%);
+  --header-color: hsl(215, 18%, 60%);
+  --element-color: hsl(158, 64%, 42%);
+  --text-white-color: hsl(210, 40%, 97%);
+  --card-color: hsl(222, 42%, 9%);
 }
 
 * {
@@ -58,6 +59,62 @@ body {
 .loading-spinner {
   background-color: #f9f9f9;
   z-index: 1000;
+}
+
+/* Bootstrap's card component defaults to a white background -- override
+   app-wide so any dbc.Card fits the dark theme. */
+.card {
+  background-color: var(--card-color) !important;
+  border-color: var(--border-color) !important;
+  color: var(--text-white-color);
+}
+
+/* dcc.Dropdown renders react-select v1 markup with its own light-theme
+   defaults -- override for the dark theme. */
+.Select-control {
+  background-color: var(--card-color) !important;
+  border-color: var(--border-color) !important;
+}
+
+.Select-placeholder,
+.Select-value,
+.Select-value-label {
+  color: var(--text-white-color) !important;
+}
+
+.Select-input > input {
+  color: var(--text-white-color) !important;
+}
+
+.Select-arrow {
+  border-color: var(--header-color) transparent transparent !important;
+}
+
+.is-open > .Select-control .Select-arrow {
+  border-color: transparent transparent var(--header-color) !important;
+}
+
+.Select-menu-outer {
+  background-color: var(--card-color) !important;
+  border-color: var(--border-color) !important;
+}
+
+.Select-option {
+  background-color: var(--card-color) !important;
+  color: var(--text-white-color) !important;
+}
+
+.Select-option.is-focused {
+  background-color: var(--banner2-color) !important;
+}
+
+.Select-option.is-selected {
+  background-color: var(--accent-color) !important;
+  color: var(--background-color) !important;
+}
+
+.Select-noresults {
+  color: var(--header-color) !important;
 }
 
 .sliderRow,
@@ -265,15 +322,25 @@ body {
   font-size: 3.5rem;
   line-height: 1.05;
   margin: 0;
+  color: var(--text-white-color);
 }
 
 .headerbanner {
-  background-color: var(--banner-color);
+  background-color: var(--banner-color) !important;
   min-height: 100px;
   display: flex;
   flex-direction: column;
   justify-content: center;
   top: 0;
+}
+
+.top-nav-link.top-nav-link {
+  color: var(--text-white-color);
+}
+
+.top-nav-link.top-nav-link:hover,
+.top-nav-link.top-nav-link.active {
+  color: var(--accent-color);
 }
 
 .headerbanner .dropdown-menu {
@@ -327,19 +394,6 @@ body {
   color: grey;
 }
 
-.fadeinelement {
-  opacity: 0;
-  animation: fade-in 3s ease-in forwards;
-}
-
-@keyframes fade-in {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 0.85;
-  }
-}
 
 .cardcontact {
   font-size: 24px;
@@ -494,45 +548,139 @@ body {
   justify-content: space-between;
 }
 
-/* Home page */
-.home-hero-section {
-  padding: 120px 16px 40px;
+/* Home page -- dark hero with floating bubbles */
+.home-hero-dark {
+  position: relative;
+  overflow: hidden;
+  min-height: calc(100vh - 100px);
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 32px 16px;
+  background-color: hsl(222 47% 6%);
+  background-image:
+    radial-gradient(60rem 60rem at 110% -10%, hsl(199 89% 48% / 0.14), transparent 60%),
+    radial-gradient(50rem 50rem at -10% 0%, hsl(158 64% 42% / 0.1), transparent 55%);
 }
 
-.home-intro-grid {
+.home-bubbles {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.home-bubble {
+  position: absolute;
+  border-radius: 50%;
+  border: 1px solid hsl(199 89% 68% / 0.2);
+  animation-name: home-bubble-float;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+}
+
+@keyframes home-bubble-float {
+  0% {
+    transform: translateY(0) translateX(0) scale(1);
+    opacity: 0;
+  }
+  10% {
+    opacity: var(--bubble-opacity, 0.3);
+  }
+  90% {
+    opacity: var(--bubble-opacity, 0.3);
+  }
+  100% {
+    transform: translateY(-110vh) translateX(var(--bubble-drift, 30px)) scale(1.15);
+    opacity: 0;
+  }
+}
+
+@keyframes home-fade-in-up {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.home-fade-in-up {
+  animation: home-fade-in-up 0.6s ease-out both;
+}
+
+.home-hero-content {
+  position: relative;
+  z-index: 10;
   width: 100%;
-  max-width: 980px;
+  max-width: 900px;
+  text-align: center;
+}
+
+.home-hero-title {
+  color: hsl(210 40% 97%);
+  font-family: Arial, sans-serif;
+  font-weight: 800;
+  font-size: 2.6rem;
+  letter-spacing: -0.02em;
+  margin: 0 0 8px;
+}
+
+.home-hero-subtitle {
+  color: hsl(215 18% 60%);
+  font-size: 1rem;
+  letter-spacing: 0.02em;
+  margin: 0 0 28px;
+}
+
+.home-hero-grid {
+  width: 100%;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 16px;
 }
 
-.home-page-intro {
+.home-dark-card {
   display: flex;
   flex-direction: column;
-  justify-content: flex-start;
-  min-height: 170px;
-  max-width: 290px;
-  width: min(290px, 100%);
-}
-
-.home-card-title-wrap {
+  align-items: center;
+  gap: 8px;
   text-align: center;
-  margin-bottom: 8px;
-}
-
-.home-card-title-link {
   text-decoration: none;
-  line-height: 1.1;
+  background: hsl(222 42% 9%);
+  border: 1px solid hsl(222 30% 16%);
+  border-radius: 16px;
+  padding: 22px 16px;
+  transition: border-color 0.2s ease, background-color 0.2s ease, transform 0.2s ease;
 }
 
-.home-card-text {
-  margin: 0;
+.home-dark-card:hover {
+  border-color: hsl(199 89% 48% / 0.5);
+  background: hsl(222 42% 11%);
+  transform: translateY(-3px);
+  text-decoration: none;
 }
 
-.home-card-text p {
-  margin: 0;
-  text-align: center;
-  line-height: 1.35;
-  font-size: 1rem;
+.home-dark-card-icon {
+  width: 28px;
+  height: 28px;
+}
+
+.home-dark-card-title {
+  color: hsl(210 40% 97%);
+  font-family: Arial, sans-serif;
+  font-weight: 700;
+  font-size: 1.15rem;
+}
+
+.home-dark-card-text {
+  color: hsl(215 18% 60%);
+  font-size: 0.82rem;
+  line-height: 1.4;
 }
 
 /* Economy page */
@@ -556,17 +704,7 @@ body {
 }
 
 .economy-accent-title {
-  color: rgba(61, 181, 105);
-}
-
-.economy-description {
-  max-width: 900px;
-  width: 100%;
-  text-align: center;
-  font-size: 1.1rem;
-  line-height: 1.5;
-  margin: 0 auto;
-  padding: 0 12px;
+  color: var(--element-color);
 }
 
 .economy-update-text {
@@ -644,6 +782,30 @@ body {
   width: 100% !important;
 }
 
+.economy-graph-inner {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  min-width: 0;
+  background: var(--card-color);
+  border: 1px solid var(--border-color);
+  border-radius: 16px;
+  padding: 10px 10px 6px;
+  transition: border-color 0.2s ease;
+}
+
+.economy-graph-inner:hover {
+  border-color: hsl(199, 89%, 48%, 0.4);
+}
+
+.economy-graph-source {
+  text-align: right;
+  font-size: 0.72rem;
+  color: var(--header-color);
+  opacity: 0.75;
+  padding: 4px 6px 0 0;
+}
+
 .economy-controls-shell {
   display: flex;
   flex-direction: column;
@@ -652,10 +814,40 @@ body {
   width: 100%;
 }
 
-.economy-market-radio {
+.economy-market-tabs-parent {
+  width: 100%;
+}
+
+.economy-market-tabs.economy-market-tabs {
+  border-bottom: 1px solid var(--border-color);
+  margin-bottom: 4px;
+}
+
+.economy-tab.economy-tab {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none !important;
+  border-bottom: 3px solid transparent !important;
+  background: transparent !important;
+  color: var(--header-color) !important;
   font-size: 1.05rem;
   font-weight: 600;
-  gap: 16px;
+  padding: 12px 22px;
+  transition: color 0.15s ease, border-color 0.15s ease;
+}
+
+.economy-tab.economy-tab:hover {
+  color: var(--accent-color) !important;
+}
+
+.economy-tab--selected.economy-tab--selected {
+  border: none !important;
+  border-bottom: 3px solid var(--accent-color) !important;
+  background: transparent !important;
+  color: var(--accent-color) !important;
+  font-weight: 700;
+  box-shadow: none !important;
 }
 
 .economy-subheading {
@@ -697,9 +889,9 @@ body {
   max-width: 220px;
   padding: 14px 12px;
   border-radius: 12px;
-  background: white;
+  background: var(--card-color);
   border: 1px solid var(--border-color);
-  box-shadow: 0px 2px 6px rgba(0, 0, 0, 0.06);
+  box-shadow: none;
 }
 
 .economy-stat-label {
@@ -714,6 +906,14 @@ body {
   font-size: 1.4rem;
   font-weight: 700;
   color: var(--accent-color);
+}
+
+.economy-stat-source {
+  font-size: 0.65rem;
+  color: var(--header-color);
+  opacity: 0.7;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
 }
 
 .comparison-controls {
@@ -922,37 +1122,21 @@ body {
     height: fit-content;
   }
 
-  .home-hero-section {
-    padding: 110px 10px 28px;
-    min-height: auto !important;
+  .home-hero-dark {
+    padding: 28px 10px;
   }
 
-  .home-intro-grid {
-    width: 100%;
+  .home-hero-title {
+    font-size: 2.3rem;
+  }
+
+  .home-hero-grid {
+    grid-template-columns: 1fr;
     gap: 12px;
   }
 
-  .home-page-intro,
-  .page-intro.home-page-intro {
-    width: 92vw;
-    max-width: 420px;
-    min-height: 150px;
-    margin-bottom: 12px;
-    padding: 14px 16px !important;
-  }
-
-  .home-card-title-wrap {
-    margin-bottom: 6px;
-  }
-
-  .home-card-title-link {
-    width: 100% !important;
-    font-size: 1.65rem !important;
-  }
-
-  .home-card-text p {
-    font-size: 0.98rem;
-    line-height: 1.3;
+  .home-dark-card {
+    padding: 20px 16px;
   }
 
   .economy-page {
@@ -961,11 +1145,6 @@ body {
 
   .economy-title-row {
     gap: 6px;
-  }
-
-  .economy-description {
-    font-size: 1rem;
-    max-width: 100%;
   }
 
   .economy-controls {
@@ -980,6 +1159,11 @@ body {
   .economy-graph-wrap {
     flex: 1 1 100%;
     width: 100%;
+  }
+
+  .economy-market-tabs .economy-tab.economy-tab {
+    font-size: 0.9rem;
+    padding: 10px 12px;
   }
 }
 
@@ -1008,29 +1192,20 @@ body {
     font-size: 1rem;
   }
 
-  .home-hero-section {
-    padding: 100px 8px 24px;
+  .home-hero-dark {
+    padding: 24px 8px;
   }
 
-  .home-page-intro,
-  .page-intro.home-page-intro {
-    width: 94vw;
-    max-width: none;
-    min-height: 140px;
-    border-radius: 10px;
+  .home-hero-title {
+    font-size: 1.9rem;
   }
 
-  .home-card-title-link {
-    font-size: 1.45rem !important;
+  .home-hero-subtitle {
+    margin-bottom: 24px;
   }
 
-  .home-card-text p {
-    font-size: 0.95rem;
-  }
-
-  .economy-description {
-    font-size: 0.98rem;
-    padding: 0 6px;
+  .home-dark-card {
+    border-radius: 12px;
   }
 
   .economy-refresh-btn {

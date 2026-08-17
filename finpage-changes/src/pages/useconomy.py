@@ -6,7 +6,6 @@ import dash_bootstrap_components as dbc
 import plotly.graph_objects as go
 from dash import html, dcc, callback, callback_context
 from dash.dependencies import Input, Output, State
-from fredapi import Fred
 
 import updateEcon
 import data_sources as ds
@@ -14,27 +13,50 @@ import data_sources as ds
 dash.register_page(__name__, path="/economy")
 
 colors = {
-    "background": "rgb(240,241,245)",
-    "text": "black",
-    "accent": "#004172",
-    "text-white": "white",
-    "content": "#Edf3F4",
+    "background": "#0b0f19",
+    "text": "#94a3b8",
+    "accent": "#38bdf8",
+    "text-white": "#e2e8f0",
+    "content": "#0f172a",
 }
 
 COLORS = {
-    "background": "#f4f4f4",
-    "banner": "#0a213b",
-    "banner2": "#1e3a5a",
-    "content": "#859db3",
-    "text": "#859db3",
-    "accent": "#004172",
-    "border": "#bed6eb",
-    "header": "#7a7a7a",
-    "element": "#1f8c44",
-    "text-white": "white",
+    "background": "#0b0f19",
+    "banner": "hsl(222, 42%, 9%)",
+    "banner2": "hsl(222, 34%, 13%)",
+    "content": "#94a3b8",
+    "text": "#94a3b8",
+    "accent": "#38bdf8",
+    "border": "#1e293b",
+    "header": "#94a3b8",
+    "element": "#34d399",
+    "text-white": "#e2e8f0",
 }
 
-FRED_API_KEY = "29f9bb6865c0b3be320b44a846d539ea"
+# Per-series chart colors, matching the reference app's palette. GRID/TICK
+# colors are for the dark plot background -- transparent paper_bgcolor lets
+# the surrounding card's own background show through.
+CHART_COLORS = {
+    "blue": "#38bdf8",
+    "green": "#34d399",
+    "amber": "#fbbf24",
+    "red": "#f87171",
+    "violet": "#a78bfa",
+    "cyan": "#22d3ee",
+    "rose": "#fb7185",
+}
+GRID_COLOR = "#1e293b"
+AXIS_TEXT_COLOR = "#64748b"
+TOOLTIP_BG = "#0b1424"
+TOOLTIP_TEXT = "#e2e8f0"
+CARD_COLOR = "hsl(222, 42%, 9%)"
+
+
+def _fill_from_line(hex_color, opacity=0.18):
+    """Low-opacity rgba fill under a line trace, from a '#rrggbb' color."""
+    h = hex_color.lstrip("#")
+    r, g, b = (int(h[i : i + 2], 16) for i in (0, 2, 4))
+    return f"rgba({r}, {g}, {b}, {opacity})"
 
 
 def load_economy_data():
@@ -51,7 +73,16 @@ firstdate = date(2000, 1, 1)
 def load_data():
     global economy, df_with_econ, latestdate, firstdate, gdp_yoy
 
-    updateEcon.updateEcon(reload="incremental")
+    try:
+        updateEcon.updateEcon(reload="incremental")
+    except Exception as exc:
+        # A failed incremental fetch (e.g. FRED rejecting a realtime_start
+        # that's "tomorrow" from its own US-timezone perspective -- which
+        # happens for a few hours after local midnight in timezones ahead
+        # of US Eastern, like CET/CEST) shouldn't block loading the CSV's
+        # already-cached, still-valid historical data below.
+        print(f"useconomy: incremental update failed, using cached econW_updated.csv ({exc})")
+
     economy = load_economy_data().copy()
     economy["Date"] = pd.to_datetime(economy["Date"])
 
@@ -82,27 +113,16 @@ def load_data():
         economy["Trade Balance"] = economy["Trade Balance"] * 1_000_000
         economy["Trade Balance"] = economy["Trade Balance"] / 1e12
 
-    fred = Fred(api_key=FRED_API_KEY)
-    interest_payments = fred.get_series("A091RC1Q027SBEA")
-    government_revenue = fred.get_series("FGRECPT")
+    # ds.fetch_fred fails soft (returns an empty frame on any error) so a
+    # FRED hiccup here can't take down the whole callback -- see below.
+    interest_df = ds.fetch_fred("A091RC1Q027SBEA").rename(columns={"value": "Interest Payments"})
+    revenue_df = ds.fetch_fred("FGRECPT").rename(columns={"value": "Total Revenue"})
 
-    interest_df = pd.DataFrame(interest_payments, columns=["Interest Payments"])
-    revenue_df = pd.DataFrame(government_revenue, columns=["Total Revenue"])
-
-    df_with_econ = pd.merge(
-        interest_df,
-        revenue_df,
-        left_index=True,
-        right_index=True,
-        how="inner",
-    )
-    df_with_econ.index = pd.to_datetime(df_with_econ.index)
-    df_with_econ = df_with_econ.reset_index().rename(columns={"index": "Date"})
-    df_with_econ["Interest Payments"] = pd.to_numeric(df_with_econ["Interest Payments"], errors="coerce")
-    df_with_econ["Total Revenue"] = pd.to_numeric(df_with_econ["Total Revenue"], errors="coerce")
-    df_with_econ["Interest to Income Ratio"] = (
-        df_with_econ["Interest Payments"] / df_with_econ["Total Revenue"]
-    ).round(2)
+    df_with_econ = pd.merge(interest_df, revenue_df, on="Date", how="inner")
+    if not df_with_econ.empty:
+        df_with_econ["Interest to Income Ratio"] = (
+            df_with_econ["Interest Payments"] / df_with_econ["Total Revenue"]
+        ).round(2)
 
     # Real GDP YoY -- not part of the incremental CSV pipeline above, fetched
     # directly (same source series used for every other market on this page).
@@ -138,8 +158,8 @@ def create_empty_figure(title, message):
             )
         ],
         font=dict(family="Helvetica", size=15, color=COLORS["text"]),
-        paper_bgcolor=colors["background"],
-        plot_bgcolor="white",
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
         height=560,
         margin=dict(l=20, r=20, t=60, b=40),
     )
@@ -172,6 +192,10 @@ def create_graph(
     dataframe = dataframe.ffill()
     dataframe["Date"] = pd.to_datetime(dataframe["Date"]).dt.date
     dataframe[y] = pd.to_numeric(dataframe[y], errors="coerce")
+    # Rows before the series' first real observation (e.g. a YoY column needs
+    # a full prior year before it can compute a value) can't be forward-filled
+    # and would otherwise plot as a blank gap at the start of the line.
+    dataframe = dataframe.dropna(subset=[y])
 
     if not isinstance(starts, date):
         starts = pd.to_datetime(starts).date()
@@ -193,8 +217,11 @@ def create_graph(
             x=dataframe["Date"],
             y=dataframe[y],
             mode="lines",
-            line=dict(color="#2a3f5f", width=2),
+            line=dict(color=color, width=2),
+            fill="tozeroy",
+            fillcolor=_fill_from_line(color),
             showlegend=False,
+            hoverinfo="x+y",
         )
     )
 
@@ -203,8 +230,9 @@ def create_graph(
             x=[dataframe["Date"].iloc[-1]],
             y=[dataframe[y].iloc[-1]],
             mode="markers",
-            marker=dict(color="red", size=7),
+            marker=dict(color=CHART_COLORS["red"], size=7, line=dict(color=CARD_COLOR, width=1)),
             showlegend=False,
+            hoverinfo="skip",
         )
     )
 
@@ -227,9 +255,10 @@ def create_graph(
         showarrow=False,
         xanchor="right",
         yanchor="top",
-        bordercolor="black",
-        borderwidth=0.8,
-        bgcolor="rgba(255,255,255,0.85)",
+        bordercolor=GRID_COLOR,
+        borderwidth=1,
+        font=dict(color=TOOLTIP_TEXT),
+        bgcolor=TOOLTIP_BG,
     )
 
     y_min = dataframe[y].min()
@@ -245,15 +274,16 @@ def create_graph(
         title_x=0.5,
         margin=dict(l=20, r=20, t=60, b=40),
         font=dict(family="Helvetica", size=15, color=colors["text"]),
-        plot_bgcolor="white",
-        paper_bgcolor=colors["background"],
+        plot_bgcolor="rgba(0,0,0,0)",
+        paper_bgcolor="rgba(0,0,0,0)",
         yaxis=dict(range=[y_min, y_max]),
         height=560,
         uirevision="constant",
+        hoverlabel=dict(bgcolor=TOOLTIP_BG, bordercolor=GRID_COLOR, font=dict(color=TOOLTIP_TEXT)),
     )
 
-    fig.update_xaxes(showgrid=True, gridcolor=COLORS["border"])
-    fig.update_yaxes(showgrid=True, gridcolor=COLORS["border"])
+    fig.update_xaxes(showgrid=False, showline=True, linecolor=GRID_COLOR, tickfont=dict(color=AXIS_TEXT_COLOR))
+    fig.update_yaxes(showgrid=True, gridcolor=GRID_COLOR, showline=False, tickfont=dict(color=AXIS_TEXT_COLOR))
 
     if tickformat:
         fig.update_yaxes(tickformat=tickformat)
@@ -264,7 +294,7 @@ def create_graph(
                 x=dataframe["Date"],
                 y=dataframe["Forward Return"],
                 fill="tozeroy",
-                fillcolor="skyblue",
+                fillcolor=CHART_COLORS["blue"],
                 name="Predicted Forward Return",
                 mode="lines",
                 showlegend=legend,
@@ -275,7 +305,7 @@ def create_graph(
                 x=dataframe["Date"],
                 y=dataframe["SP Trailing 4 Weeks Return"],
                 fill="tozeroy",
-                fillcolor="red",
+                fillcolor=CHART_COLORS["red"],
                 name="Actual Forward Return",
                 mode="lines",
                 showlegend=legend,
@@ -283,14 +313,14 @@ def create_graph(
         )
 
     if hline1:
-        fig.add_hline(y=35, line_width=3, line_dash="dash", line_color="orange")
-        fig.add_hline(y=20, line_width=3, line_dash="dash", line_color="red")
+        fig.add_hline(y=35, line_width=3, line_dash="dash", line_color=CHART_COLORS["amber"])
+        fig.add_hline(y=20, line_width=3, line_dash="dash", line_color=CHART_COLORS["red"])
 
     if hline0:
-        fig.add_hline(y=0, line_width=3, line_dash="dash", line_color="black")
+        fig.add_hline(y=0, line_width=3, line_dash="dash", line_color=AXIS_TEXT_COLOR)
 
     if yoy:
-        fig.add_hline(y=0.02, line_width=3, line_dash="dash", line_color="orange")
+        fig.add_hline(y=0.02, line_width=3, line_dash="dash", line_color=CHART_COLORS["amber"])
         fig.add_annotation(
             text="Yellow Line: FED Target Rate",
             align="left",
@@ -299,9 +329,10 @@ def create_graph(
             yref="paper",
             x=0.05,
             y=1.0,
-            bordercolor="black",
+            bordercolor=GRID_COLOR,
             borderwidth=1,
-            bgcolor="rgba(255,255,255,0.85)",
+            font=dict(color=TOOLTIP_TEXT),
+            bgcolor=TOOLTIP_BG,
         )
 
     if textbox:
@@ -313,23 +344,93 @@ def create_graph(
             yref="paper",
             x=0.05,
             y=1.0,
-            bordercolor="black",
+            bordercolor=GRID_COLOR,
             borderwidth=1,
-            bgcolor="rgba(255,255,255,0.85)",
+            font=dict(color=TOOLTIP_TEXT),
+            bgcolor=TOOLTIP_BG,
         )
 
     return fig
 
 
-# ------------------------------------------------------- shared UI bits ----
-def stat_card(label, value):
-    return html.Div(
-        [
-            html.Div(label, className="economy-stat-label"),
-            html.Div(value, className="economy-stat-value"),
-        ],
-        className="economy-stat-card",
+# --------------------------------------------------------- comparison tab --
+COMPARISON_COUNTRY_LABELS = {"us": "US", "eu": "EU", "uk": "UK", "norway": "Norway"}
+COMPARISON_COUNTRY_COLORS = {
+    "us": CHART_COLORS["blue"],
+    "eu": CHART_COLORS["green"],
+    "uk": CHART_COLORS["amber"],
+    "norway": CHART_COLORS["red"],
+}
+COMPARISON_COUNTRY_OPTIONS = [
+    {"label": label, "value": key} for key, label in COMPARISON_COUNTRY_LABELS.items()
+]
+
+
+def create_comparison_figure(title, yaxis, series_map, tick, selected):
+    """One line per selected country, clipped to the earliest date where all
+    selected countries have a value."""
+    frames = [(key, series_map.get(key)) for key in selected]
+    frames = [(key, df) for key, df in frames if df is not None and not df.empty]
+    if not frames:
+        return create_empty_figure(title, "No data for selected countries")
+
+    merged = None
+    for key, df in frames:
+        s = df[["Date", "value"]].rename(columns={"value": key}).set_index("Date")
+        merged = s if merged is None else merged.join(s, how="outer")
+    merged = merged.sort_index().ffill()
+
+    complete = merged.dropna(how="any")
+    if not complete.empty:
+        merged = merged.loc[complete.index.min():]
+    merged = merged.reset_index()
+
+    fig = go.Figure()
+    for key, _ in frames:
+        if key not in merged.columns:
+            continue
+        fig.add_trace(
+            go.Scatter(
+                x=merged["Date"],
+                y=merged[key],
+                mode="lines",
+                name=COMPARISON_COUNTRY_LABELS.get(key, key.upper()),
+                line=dict(color=COMPARISON_COUNTRY_COLORS.get(key, CHART_COLORS["blue"]), width=2),
+                hoverinfo="x+y+name",
+            )
+        )
+
+    fig.update_layout(
+        title=title,
+        title_x=0.5,
+        yaxis_title=yaxis,
+        xaxis_title="Date",
+        margin=dict(l=20, r=20, t=60, b=50),
+        font=dict(family="Helvetica", size=15, color=colors["text"]),
+        plot_bgcolor="rgba(0,0,0,0)",
+        paper_bgcolor="rgba(0,0,0,0)",
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="center", x=0.5, font=dict(color=colors["text"])),
+        height=460,
+        uirevision="constant",
+        hoverlabel=dict(bgcolor=TOOLTIP_BG, bordercolor=GRID_COLOR, font=dict(color=TOOLTIP_TEXT)),
     )
+    fig.update_xaxes(showgrid=False, showline=True, linecolor=GRID_COLOR, tickfont=dict(color=AXIS_TEXT_COLOR))
+    fig.update_yaxes(showgrid=True, gridcolor=GRID_COLOR, showline=False, tickfont=dict(color=AXIS_TEXT_COLOR))
+    if tick == "%":
+        fig.update_yaxes(tickformat=".1%")
+
+    return fig
+
+
+# ------------------------------------------------------- shared UI bits ----
+def stat_card(label, value, source=None):
+    children = [
+        html.Div(label, className="economy-stat-label"),
+        html.Div(value, className="economy-stat-value"),
+    ]
+    if source:
+        children.append(html.Div(source, className="economy-stat-source"))
+    return html.Div(children, className="economy-stat-card")
 
 
 def stat_row(*cards):
@@ -362,48 +463,65 @@ def resolve_date_range(range_selector):
     return date(2000, 1, 1), today
 
 
-def graph_wrap(fig, full=True):
+def source_caption(source):
+    return html.Div(f"Source: {source}", className="economy-graph-source") if source else None
+
+
+def graph_wrap(fig, full=True, source=None, graph_id=None):
     classes = "economy-graph-wrap economy-graph-wrap-full" if full else "economy-graph-wrap"
-    return html.Div(
-        dcc.Graph(figure=fig, className="graph economy-graph", responsive=True),
-        className=classes,
-    )
+    inner = [dcc.Graph(id=graph_id, figure=fig, className="graph economy-graph", responsive=True)] if graph_id \
+        else [dcc.Graph(figure=fig, className="graph economy-graph", responsive=True)]
+    caption = source_caption(source)
+    if caption:
+        inner.append(caption)
+    return html.Div(html.Div(inner, className="economy-graph-inner"), className=classes)
+
+
+def graph_slot(graph_id, source=None, wide=False):
+    """A graph placeholder for the static US-tab layout -- figure is filled
+    in later by update_all_graphs()."""
+    classes = "graph economy-graph economy-graph-wide" if wide else "graph economy-graph"
+    inner = [dcc.Graph(id=graph_id, className=classes, responsive=True)]
+    caption = source_caption(source)
+    if caption:
+        inner.append(caption)
+    return html.Div(html.Div(inner, className="economy-graph-inner"), className="economy-graph-wrap")
 
 
 # ------------------------------------------------- Norway / EU / UK tabs ---
 def render_country_graphs(rows, starts, ends):
     children = []
-    for title, subtitle, df, tick in rows:
-        fig = create_graph(colors["accent"], subtitle or title, title, df, "value", tick, starts, ends)
-        children.append(graph_wrap(fig))
+    for title, subtitle, df, tick, source, color in rows:
+        fig = create_graph(color, subtitle or title, title, df, "value", tick, starts, ends)
+        children.append(graph_wrap(fig, source=source))
     return children
 
 
 def render_norway(d, starts, ends):
     d = d or {}
     stats = stat_row(
-        stat_card("10Y Yield", fmt_pct(ds.last_value(d.get("bondYield10y")))),
-        stat_card("Policy Rate", fmt_pct(ds.last_value(d.get("policyRate")))),
-        stat_card("CPI YoY", fmt_pct(ds.last_value(d.get("cpiYoY")))),
-        stat_card("GDP YoY", fmt_pct(ds.last_value(d.get("gdpYoY")))),
-        stat_card("Unemployment", fmt_pct(ds.last_value(d.get("unemployment")))),
+        stat_card("10Y Yield", fmt_pct(ds.last_value(d.get("bondYield10y"))), "Norges Bank"),
+        stat_card("Policy Rate", fmt_pct(ds.last_value(d.get("policyRate"))), "Norges Bank"),
+        stat_card("CPI YoY", fmt_pct(ds.last_value(d.get("cpiYoY"))), "SSB"),
+        stat_card("GDP YoY", fmt_pct(ds.last_value(d.get("gdpYoY"))), "SSB"),
+        stat_card("Unemployment", fmt_pct(ds.last_value(d.get("unemployment"))), "SSB"),
     )
     graphs = render_country_graphs(
         [
-            ("OSEBX", "Oslo Børs benchmark", d.get("stockIndex"), " "),
-            ("10Y Govt Yield", "Norway", d.get("bondYield10y"), "%"),
-            ("Policy Rate", "Norges Bank", d.get("policyRate"), "%"),
-            ("10Y-3Y Spread", "10Y minus 3Y", d.get("spread10y3y"), "%"),
-            ("CPI YoY", "Norway inflation", d.get("cpiYoY"), "%"),
-            ("GDP YoY", "Real GDP", d.get("gdpYoY"), "%"),
-            ("Unemployment", "Norway", d.get("unemployment"), "%"),
-            ("USD / NOK", None, d.get("usdFx"), " "),
-            ("EUR / NOK", None, d.get("eurFx"), " "),
+            ("OSEBX", "Oslo Børs benchmark", d.get("stockIndex"), " ", "Yahoo Finance", CHART_COLORS["blue"]),
+            ("10Y Govt Yield", "Norway", d.get("bondYield10y"), "%", "Norges Bank", CHART_COLORS["amber"]),
+            ("Policy Rate", "Norges Bank", d.get("policyRate"), "%", "Norges Bank", CHART_COLORS["violet"]),
+            ("10Y-3Y Spread", "10Y minus 3Y", d.get("spread10y3y"), "%", "Norges Bank", CHART_COLORS["green"]),
+            ("CPI YoY", "Norway inflation", d.get("cpiYoY"), "%", "SSB", CHART_COLORS["red"]),
+            ("GDP YoY", "Real GDP", d.get("gdpYoY"), "%", "SSB", CHART_COLORS["green"]),
+            ("Unemployment", "Norway", d.get("unemployment"), "%", "SSB", CHART_COLORS["cyan"]),
+            ("USD / NOK", None, d.get("usdFx"), " ", "Norges Bank", CHART_COLORS["amber"]),
+            ("EUR / NOK", None, d.get("eurFx"), " ", "Norges Bank", CHART_COLORS["green"]),
         ],
         starts,
         ends,
     )
-    return html.Div([stats, html.Hr(className="economy-divider")] + graphs)
+    return html.Div([stats, html.Hr(className="economy-divider")] + graphs, style={"width": "100%"})
 
 
 def render_eu_country_detail(d, country_key, starts, ends):
@@ -413,13 +531,13 @@ def render_eu_country_detail(d, country_key, starts, ends):
     if not c:
         return html.Div("No data for this country.", className="economy-empty-note")
     stats = stat_row(
-        stat_card("10Y", fmt_pct(ds.last_value(c.get("bondYield10y")))),
-        stat_card("CPI", fmt_pct(ds.last_value(c.get("cpiYoY")))),
-        stat_card("GDP", fmt_pct(ds.last_value(c.get("gdpYoY")))),
-        stat_card("Unemp", fmt_pct(ds.last_value(c.get("unemployment")))),
+        stat_card("10Y", fmt_pct(ds.last_value(c.get("bondYield10y"))), "FRED"),
+        stat_card("CPI", fmt_pct(ds.last_value(c.get("cpiYoY"))), "FRED"),
+        stat_card("GDP", fmt_pct(ds.last_value(c.get("gdpYoY"))), "FRED"),
+        stat_card("Unemp", fmt_pct(ds.last_value(c.get("unemployment"))), "FRED"),
     )
     fig = create_graph(
-        colors["accent"],
+        CHART_COLORS["green"],
         "Index",
         f"{c.get('label', country_key.title())} Stock Index",
         c.get("stockIndex"),
@@ -428,24 +546,24 @@ def render_eu_country_detail(d, country_key, starts, ends):
         starts,
         ends,
     )
-    return html.Div([stats, graph_wrap(fig)])
+    return html.Div([stats, graph_wrap(fig, source="Yahoo Finance")], style={"width": "100%"})
 
 
 def render_eu(d, starts, ends, country_key="germany"):
     d = d or {}
     stats = stat_row(
-        stat_card("10Y Yield", fmt_pct(ds.last_value(d.get("bondYield10y")))),
-        stat_card("Policy Rate", fmt_pct(ds.last_value(d.get("policyRate")))),
-        stat_card("CPI YoY", fmt_pct(ds.last_value(d.get("cpiYoY")))),
-        stat_card("GDP YoY", fmt_pct(ds.last_value(d.get("gdpYoY")))),
+        stat_card("10Y Yield", fmt_pct(ds.last_value(d.get("bondYield10y"))), "ECB"),
+        stat_card("Policy Rate", fmt_pct(ds.last_value(d.get("policyRate"))), "FRED"),
+        stat_card("CPI YoY", fmt_pct(ds.last_value(d.get("cpiYoY"))), "FRED"),
+        stat_card("GDP YoY", fmt_pct(ds.last_value(d.get("gdpYoY"))), "FRED"),
     )
     graphs = render_country_graphs(
         [
-            ("EU 10Y Govt Yield", None, d.get("bondYield10y"), "%"),
-            ("ECB Policy Rate", None, d.get("policyRate"), "%"),
-            ("CPI YoY", "Euro area inflation", d.get("cpiYoY"), "%"),
-            ("GDP YoY", "Euro area real GDP", d.get("gdpYoY"), "%"),
-            ("Euro Stoxx 50", None, d.get("stockIndex"), " "),
+            ("EU 10Y Govt Yield", None, d.get("bondYield10y"), "%", "ECB", CHART_COLORS["amber"]),
+            ("ECB Policy Rate", None, d.get("policyRate"), "%", "FRED", CHART_COLORS["violet"]),
+            ("CPI YoY", "Euro area inflation", d.get("cpiYoY"), "%", "FRED", CHART_COLORS["red"]),
+            ("GDP YoY", "Euro area real GDP", d.get("gdpYoY"), "%", "FRED", CHART_COLORS["green"]),
+            ("Euro Stoxx 50", None, d.get("stockIndex"), " ", "Yahoo Finance", CHART_COLORS["blue"]),
         ],
         starts,
         ends,
@@ -459,40 +577,84 @@ def render_eu(d, starts, ends, country_key="germany"):
                 options=country_options,
                 value=country_key,
                 className="economy-radio",
-                inputStyle={"margin-right": "6px", "margin-left": "12px"},
-                labelStyle={"display": "inline-block", "margin-right": "12px"},
+                inputStyle={"marginRight": "6px", "marginLeft": "12px"},
+                labelStyle={"display": "inline-block", "marginRight": "12px"},
             ),
         ],
         className="economy-controls",
     )
-    detail = html.Div(render_eu_country_detail(d, country_key, starts, ends), id="eu-country-detail")
+    detail = html.Div(
+        render_eu_country_detail(d, country_key, starts, ends),
+        id="eu-country-detail",
+        style={"width": "100%"},
+    )
     return html.Div(
         [stats, html.Hr(className="economy-divider")]
         + graphs
-        + [html.Hr(className="economy-divider"), country_picker, detail]
+        + [html.Hr(className="economy-divider"), country_picker, detail],
+        style={"width": "100%"},
     )
 
 
 def render_uk(d, starts, ends):
     d = d or {}
     stats = stat_row(
-        stat_card("10Y Yield", fmt_pct(ds.last_value(d.get("bondYield10y")))),
-        stat_card("CPI YoY", fmt_pct(ds.last_value(d.get("cpiYoY")))),
-        stat_card("GDP YoY", fmt_pct(ds.last_value(d.get("gdpYoY")))),
-        stat_card("Unemployment", fmt_pct(ds.last_value(d.get("unemployment")))),
+        stat_card("10Y Yield", fmt_pct(ds.last_value(d.get("bondYield10y"))), "FRED"),
+        stat_card("CPI YoY", fmt_pct(ds.last_value(d.get("cpiYoY"))), "ONS"),
+        stat_card("GDP YoY", fmt_pct(ds.last_value(d.get("gdpYoY"))), "ONS"),
+        stat_card("Unemployment", fmt_pct(ds.last_value(d.get("unemployment"))), "ONS"),
     )
     graphs = render_country_graphs(
         [
-            ("FTSE 100", "UK equity benchmark", d.get("stockIndex"), " "),
-            ("10Y Gilt Yield", None, d.get("bondYield10y"), "%"),
-            ("CPI YoY", "UK inflation", d.get("cpiYoY"), "%"),
-            ("GDP YoY", "Real GDP", d.get("gdpYoY"), "%"),
-            ("Unemployment", "UK", d.get("unemployment"), "%"),
+            ("FTSE 100", "UK equity benchmark", d.get("stockIndex"), " ", "Yahoo Finance", CHART_COLORS["blue"]),
+            ("10Y Gilt Yield", None, d.get("bondYield10y"), "%", "FRED", CHART_COLORS["amber"]),
+            ("CPI YoY", "UK inflation", d.get("cpiYoY"), "%", "ONS", CHART_COLORS["red"]),
+            ("GDP YoY", "Real GDP", d.get("gdpYoY"), "%", "ONS", CHART_COLORS["green"]),
+            ("Unemployment", "UK", d.get("unemployment"), "%", "ONS", CHART_COLORS["cyan"]),
         ],
         starts,
         ends,
     )
-    return html.Div([stats, html.Hr(className="economy-divider")] + graphs)
+    return html.Div([stats, html.Hr(className="economy-divider")] + graphs, style={"width": "100%"})
+
+
+def render_comparison_panel(selected=None):
+    selected = selected or ["us", "eu", "uk", "norway"]
+    data = ds.get_comparison_data()
+
+    gdp = create_comparison_figure("GDP Growth YoY", "Real GDP, YoY %", data.get("gdpYoY", {}), "%", selected)
+    cpi = create_comparison_figure("CPI Growth YoY", "Consumer prices, YoY %", data.get("cpiYoY", {}), "%", selected)
+    yld = create_comparison_figure("10Y Government Bond Yield", "Yield, %", data.get("bondYield10y", {}), "%", selected)
+    unemp = create_comparison_figure(
+        "Unemployment Rate", "% of labor force", data.get("unemployment", {}), "%", selected
+    )
+
+    country_toggle = dbc.Checklist(
+        id="comparison-countries",
+        className="comparison-toggle-group",
+        inputClassName="btn-check",
+        labelClassName="btn btn-outline-secondary comparison-toggle-btn",
+        labelCheckedClassName="active",
+        options=COMPARISON_COUNTRY_OPTIONS,
+        value=selected,
+        inline=True,
+    )
+
+    return html.Div(
+        [
+            html.Div(
+                "Cross-country macro metrics, aligned from the earliest common date.",
+                className="economy-subheading",
+            ),
+            country_toggle,
+            html.Hr(className="economy-divider"),
+            graph_wrap(gdp, source="FRED, ONS, SSB", graph_id="gdp-comparison-graph"),
+            graph_wrap(cpi, source="FRED, ONS, SSB", graph_id="cpi-comparison-graph"),
+            graph_wrap(yld, source="FRED, ECB, Norges Bank", graph_id="yield-comparison-graph"),
+            graph_wrap(unemp, source="FRED, Eurostat, ONS, SSB", graph_id="unemployment-comparison-graph"),
+        ],
+        style={"width": "100%"},
+    )
 
 
 def render_market_panel(market, starts, ends, eu_country="germany"):
@@ -502,13 +664,10 @@ def render_market_panel(market, starts, ends, eu_country="germany"):
         return render_eu(ds.get_market_data("eu"), starts, ends, eu_country)
     if market == "uk":
         return render_uk(ds.get_market_data("uk"), starts, ends)
+    if market == "comparison":
+        return render_comparison_panel()
     return html.Div()
 
-
-descriptioneconomy = (
-    "An overview of major economies — US, Norway, EU, and UK. "
-    "Source: FRED, Yahoo Finance, Norges Bank, SSB, and multpl.com."
-)
 
 cardeconomy = dbc.Container(
     [
@@ -522,11 +681,6 @@ cardeconomy = dbc.Container(
             ],
             className="page-intros economy-title-row",
         ),
-        html.Div(
-            id="description-output",
-            children=[descriptioneconomy],
-            className="normal-text economy-description",
-        ),
         dcc.Loading(
             id="loading",
             type="default",
@@ -535,45 +689,40 @@ cardeconomy = dbc.Container(
                 className="economy-update-text",
             ),
         ),
+        dcc.Tabs(
+            id="market-selector",
+            value="us",
+            className="economy-market-tabs",
+            parent_className="economy-market-tabs-parent",
+            children=[
+                dcc.Tab(label="US", value="us", className="economy-tab", selected_className="economy-tab--selected"),
+                dcc.Tab(label="Norway", value="norway", className="economy-tab", selected_className="economy-tab--selected"),
+                dcc.Tab(label="EU", value="eu", className="economy-tab", selected_className="economy-tab--selected"),
+                dcc.Tab(label="UK", value="uk", className="economy-tab", selected_className="economy-tab--selected"),
+                dcc.Tab(label="Comparison", value="comparison", className="economy-tab", selected_className="economy-tab--selected"),
+            ],
+        ),
         html.Div(
             [
-                dcc.RadioItems(
-                    id="market-selector",
-                    options=[
-                        {"label": "US", "value": "us"},
-                        {"label": "Norway", "value": "norway"},
-                        {"label": "EU", "value": "eu"},
-                        {"label": "UK", "value": "uk"},
-                    ],
-                    value="us",
-                    className="economy-radio economy-market-radio",
-                    inputStyle={"margin-right": "6px", "margin-left": "12px"},
-                    labelStyle={"display": "inline-block", "margin-right": "12px"},
+                html.Button(
+                    "Refresh",
+                    id="refresh-button",
+                    n_clicks=0,
+                    className="economy-refresh-btn",
                 ),
-                html.Div(
-                    [
-                        html.Button(
-                            "Refresh",
-                            id="refresh-button",
-                            n_clicks=0,
-                            className="economy-refresh-btn",
-                        ),
-                        dcc.RadioItems(
-                            id="date-range-selector",
-                            options=[
-                                {"label": "YTD", "value": "ytd"},
-                                {"label": "Full Range", "value": "full"},
-                            ],
-                            value="full",
-                            className="economy-radio",
-                            inputStyle={"margin-right": "6px", "margin-left": "12px"},
-                            labelStyle={"display": "inline-block", "margin-right": "12px"},
-                        ),
+                dcc.RadioItems(
+                    id="date-range-selector",
+                    options=[
+                        {"label": "YTD", "value": "ytd"},
+                        {"label": "Full Range", "value": "full"},
                     ],
-                    className="economy-controls",
+                    value="full",
+                    className="economy-radio",
+                    inputStyle={"marginRight": "6px", "marginLeft": "12px"},
+                    labelStyle={"display": "inline-block", "marginRight": "12px"},
                 ),
             ],
-            className="economy-controls-shell",
+            className="economy-controls",
         ),
         html.Hr(className="economy-divider"),
         html.Div(
@@ -582,66 +731,36 @@ cardeconomy = dbc.Container(
                 html.Div(id="us-stats-row", className="economy-stat-row"),
                 html.Div(
                     [
-                        html.Div(
-                            [dcc.Graph(id="ten-year-yield-graph", className="graph economy-graph", responsive=True)],
-                            className="economy-graph-wrap",
-                        ),
-                        html.Div(
-                            [dcc.Graph(id="shiller-pe-graph", className="graph economy-graph", responsive=True)],
-                            className="economy-graph-wrap",
-                        ),
+                        graph_slot("ten-year-yield-graph", source="Yahoo Finance"),
+                        graph_slot("shiller-pe-graph", source="multpl.com"),
                     ],
                     className="parent-row economy-row",
                 ),
                 html.Div(
                     [
-                        html.Div(
-                            [dcc.Graph(id="sp500-graph", className="graph economy-graph", responsive=True)],
-                            className="economy-graph-wrap",
-                        ),
-                        html.Div(
-                            [dcc.Graph(id="inflation-graph", className="graph economy-graph", responsive=True)],
-                            className="economy-graph-wrap",
-                        ),
+                        graph_slot("sp500-graph", source="Yahoo Finance"),
+                        graph_slot("inflation-graph", source="FRED"),
                     ],
                     className="parent-row economy-row",
                 ),
                 html.Div(
                     [
-                        html.Div(
-                            [dcc.Graph(id="interest-to-income-graph", className="graph economy-graph", responsive=True)],
-                            className="economy-graph-wrap",
-                        ),
-                        html.Div(
-                            [dcc.Graph(id="money-supply-graph", className="graph economy-graph", responsive=True)],
-                            className="economy-graph-wrap",
-                        ),
+                        graph_slot("interest-to-income-graph", source="FRED"),
+                        graph_slot("money-supply-graph", source="FRED"),
                     ],
                     className="parent-row economy-row",
                 ),
                 html.Div(
                     [
-                        html.Div(
-                            [dcc.Graph(id="t10y2y-graph", className="graph economy-graph", responsive=True)],
-                            className="economy-graph-wrap",
-                        ),
-                        html.Div(
-                            [dcc.Graph(id="unemployment-graph", className="graph economy-graph", responsive=True)],
-                            className="economy-graph-wrap",
-                        ),
+                        graph_slot("t10y2y-graph", source="FRED"),
+                        graph_slot("unemployment-graph", source="FRED"),
                     ],
                     className="parent-row economy-row",
                 ),
                 html.Div(
                     [
-                        html.Div(
-                            [dcc.Graph(id="gdp-graph", className="graph economy-graph", responsive=True)],
-                            className="economy-graph-wrap",
-                        ),
-                        html.Div(
-                            [dcc.Graph(id="trade-graph", className="graph economy-graph economy-graph-wide", responsive=True)],
-                            className="economy-graph-wrap",
-                        ),
+                        graph_slot("gdp-graph", source="FRED"),
+                        graph_slot("trade-graph", source="FRED", wide=True),
                     ],
                     className="parent-row economy-row",
                 ),
@@ -650,6 +769,7 @@ cardeconomy = dbc.Container(
         dcc.Loading(
             id="loading-other-economy",
             type="default",
+            parent_style={"width": "100%"},
             children=html.Div(id="other-economy-panel", style={"display": "none"}),
         ),
         dcc.Interval(
@@ -685,7 +805,6 @@ layout = dbc.Container(
         Output("trade-graph", "figure"),
         Output("gdp-graph", "figure"),
         Output("us-stats-row", "children"),
-        Output("description-output", "children"),
         Output("update-output", "children"),
     ],
     [
@@ -696,16 +815,25 @@ layout = dbc.Container(
     prevent_initial_call=False,
 )
 def update_all_graphs(range_selector, n_intervals, n_clicks):
-    global economy, df_with_econ, firstdate, latestdate, descriptioneconomy
+    global economy, df_with_econ, firstdate, latestdate
 
     ctx = callback_context
     if ctx.triggered:
         trigger_id = ctx.triggered[0]["prop_id"].split(".")[0]
         if trigger_id == "refresh-button":
-            load_data()
+            try:
+                load_data()
+            except Exception as exc:
+                # A failed refresh (FRED/Yahoo/multpl hiccup) shouldn't crash
+                # the callback and blank every graph -- keep showing the last
+                # successfully loaded data instead.
+                print(f"useconomy: refresh failed, keeping last-known data ({exc})")
 
     if n_intervals and n_intervals > 0:
-        load_data()
+        try:
+            load_data()
+        except Exception as exc:
+            print(f"useconomy: interval refresh failed, keeping last-known data ({exc})")
 
     firstdate_obj = pd.to_datetime(firstdate).date() if isinstance(firstdate, str) else firstdate
     latestdate_obj = pd.to_datetime(latestdate).date() if isinstance(latestdate, str) else latestdate
@@ -726,68 +854,63 @@ def update_all_graphs(range_selector, n_intervals, n_clicks):
         end_date = latestdate_obj
 
     ten_year_yield = create_graph(
-        colors["accent"], "Yield", "10-yr Treasury Yield %",
+        CHART_COLORS["amber"], "Yield", "10-yr Treasury Yield %",
         economy, "TenYield", tick="%", starts=start_date, ends=end_date
     )
 
     shiller_pe = create_graph(
-        colors["accent"], "Shiller P/E Ratio", "Shiller P/E Ratio",
+        CHART_COLORS["green"], "Shiller P/E Ratio", "Shiller P/E Ratio",
         economy, "Shiller_PE", tick=" ", starts=start_date, ends=end_date
     )
 
     sp500 = create_graph(
-        colors["accent"], "Price", "S&P 500 Index",
+        CHART_COLORS["blue"], "Price", "S&P 500 Index",
         economy, "Close", tick=" ", starts=start_date, ends=end_date
     )
 
     inflation = create_graph(
-        colors["accent"], "Inflation YoY", "Inflation US YoY-Change %",
+        CHART_COLORS["red"], "Inflation YoY", "Inflation US YoY-Change %",
         economy, "CPI YoY", tick="%", starts=start_date_infl, ends=end_date, yoy=True
     )
 
     interest_to_income = create_graph(
-        colors["accent"], "Interest to Income Ratio", "Federal Interest Payments to Revenues Ratio",
+        CHART_COLORS["rose"], "Interest to Income Ratio", "Federal Interest Payments to Revenues Ratio",
         df_with_econ, "Interest to Income Ratio", tick="%", starts=start_date, ends=end_date
     )
 
     money_supply = create_graph(
-        colors["accent"], "Money Supply M2", "Money Supply US M2",
+        CHART_COLORS["cyan"], "Money Supply M2", "Money Supply US M2",
         economy, "m2", tick=" ", starts=start_date, ends=end_date
     )
 
     t10y2y = create_graph(
-        colors["accent"], "T10Y2Y", "10-y 2-y Spread",
+        CHART_COLORS["violet"], "T10Y2Y", "10-y 2-y Spread",
         economy, "T10Y2Y", tick=" ", starts=start_date, ends=end_date, hline0=False
     )
 
     unemployment = create_graph(
-        colors["accent"], "Unemployment Rate", "Unemployment Rate US",
+        CHART_COLORS["cyan"], "Unemployment Rate", "Unemployment Rate US",
         economy, "unemp_rate", tick="%", starts=start_date, ends=end_date
     )
 
     tradebalance = create_graph(
-        colors["accent"],
+        CHART_COLORS["blue"],
         "Trade Balance (Exports-Imports) in Trillions $, Monthly",
         "Trade Balance US in Trillions $, Monthly",
         economy, "Trade Balance", tick=" ", starts=start_date, ends=end_date, trade=True
     )
 
     gdp = create_graph(
-        colors["accent"], "GDP YoY", "US Real GDP YoY %",
+        CHART_COLORS["green"], "GDP YoY", "US Real GDP YoY %",
         gdp_yoy, "value", tick="%", starts=start_date, ends=end_date
     )
 
     us_stats = stat_row(
-        stat_card("10Y Yield", fmt_pct(col_last(economy, "TenYield"))),
-        stat_card("Unemployment", fmt_pct(col_last(economy, "unemp_rate"))),
-        stat_card("CPI YoY", fmt_pct(col_last(economy, "CPI YoY"))),
-        stat_card("GDP YoY", fmt_pct(ds.last_value(gdp_yoy))),
-        stat_card("Shiller P/E", fmt_num(col_last(economy, "Shiller_PE"), 1)),
-    )
-
-    descriptioneconomy = (
-        "An overview of major economies — US, Norway, EU, and UK. "
-        "Source: FRED, Yahoo Finance, Norges Bank, SSB, and multpl.com."
+        stat_card("10Y Yield", fmt_pct(col_last(economy, "TenYield")), "Yahoo Finance"),
+        stat_card("Unemployment", fmt_pct(col_last(economy, "unemp_rate")), "FRED"),
+        stat_card("CPI YoY", fmt_pct(col_last(economy, "CPI YoY")), "FRED"),
+        stat_card("GDP YoY", fmt_pct(ds.last_value(gdp_yoy)), "FRED"),
+        stat_card("Shiller P/E", fmt_num(col_last(economy, "Shiller_PE"), 1), "multpl.com"),
     )
 
     return (
@@ -802,7 +925,6 @@ def update_all_graphs(range_selector, n_intervals, n_clicks):
         tradebalance,
         gdp,
         us_stats,
-        descriptioneconomy,
         f"Last check for new updates: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
     )
 
@@ -819,7 +941,7 @@ def update_all_graphs(range_selector, n_intervals, n_clicks):
 )
 def switch_market(market, range_selector, n_intervals, n_clicks):
     us_style = {} if market == "us" else {"display": "none"}
-    other_style = {"display": "none"} if market == "us" else {}
+    other_style = {"display": "none"} if market == "us" else {"width": "100%"}
 
     if market == "us":
         return us_style, other_style, dash.no_update
@@ -844,3 +966,23 @@ def switch_eu_country(country_key, range_selector):
     starts, ends = resolve_date_range(range_selector)
     data = ds.get_market_data("eu")
     return render_eu_country_detail(data, country_key, starts, ends)
+
+
+@callback(
+    Output("gdp-comparison-graph", "figure"),
+    Output("cpi-comparison-graph", "figure"),
+    Output("yield-comparison-graph", "figure"),
+    Output("unemployment-comparison-graph", "figure"),
+    Input("comparison-countries", "value"),
+    prevent_initial_call=True,
+)
+def switch_comparison_countries(selected):
+    selected = selected or []
+    data = ds.get_comparison_data()
+    gdp = create_comparison_figure("GDP Growth YoY", "Real GDP, YoY %", data.get("gdpYoY", {}), "%", selected)
+    cpi = create_comparison_figure("CPI Growth YoY", "Consumer prices, YoY %", data.get("cpiYoY", {}), "%", selected)
+    yld = create_comparison_figure("10Y Government Bond Yield", "Yield, %", data.get("bondYield10y", {}), "%", selected)
+    unemp = create_comparison_figure(
+        "Unemployment Rate", "% of labor force", data.get("unemployment", {}), "%", selected
+    )
+    return gdp, cpi, yld, unemp

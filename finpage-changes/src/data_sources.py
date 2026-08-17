@@ -107,8 +107,11 @@ def fetch_norges_yields(tenors, start="2016-01-01"):
     )
     raw = _norges_bank_csv(url)
     out = {}
-    if not raw.empty and "Tenor" in raw.columns:
-        for tenor, grp in raw.groupby("Tenor"):
+    # The CSV has both "TENOR" (short code, e.g. "3Y") and "Tenor" (label,
+    # e.g. "3 years") columns -- group by the short code since that's what
+    # callers look up (out.get("10Y"), etc).
+    if not raw.empty and "TENOR" in raw.columns:
+        for tenor, grp in raw.groupby("TENOR"):
             df = grp[["TIME_PERIOD", "OBS_VALUE"]].rename(
                 columns={"TIME_PERIOD": "Date", "OBS_VALUE": "value"}
             )
@@ -253,6 +256,108 @@ def fetch_ssb_gdp():
         return _empty()
 
 
+# ------------------------------------------------------------------ ONS ----
+def _ons_series(section, series_id, dataset_id):
+    """UK Office for National Statistics timeseries API. Returns whatever
+    granularity (monthly/quarterly/annual) the series publishes at. These
+    are already the rate/level callers want -- no yoy_change() needed."""
+    try:
+        url = f"https://api.beta.ons.gov.uk/v1/data?uri=/{section}/timeseries/{series_id}/{dataset_id}"
+        r = requests.get(url, headers=_HEADERS, timeout=_TIMEOUT)
+        r.raise_for_status()
+        data = r.json()
+        points = data.get("months") or data.get("quarters") or data.get("years") or []
+        rows = []
+        for p in points:
+            if p.get("quarter"):
+                q = int(p["quarter"].replace("Q", ""))
+                date = pd.Timestamp(year=int(p["year"]), month=(q - 1) * 3 + 1, day=1)
+            elif p.get("month"):
+                date = pd.to_datetime(f"{p['year']} {p['month']}", format="%Y %B")
+            else:
+                date = pd.Timestamp(year=int(p["year"]), month=1, day=1)
+            rows.append({"Date": date, "value": p["value"]})
+        if not rows:
+            return _empty()
+        df = pd.DataFrame(rows)
+        df["value"] = pd.to_numeric(df["value"], errors="coerce")
+        return df.dropna().sort_values("Date").reset_index(drop=True)
+    except Exception:
+        return _empty()
+
+
+def fetch_ons_uk_cpi_yoy():
+    """UK CPI 12-month rate, all items (ONS D7G7/MM23) -- the FRED mirror
+    (GBRCPIALLMINMEI) stopped updating in March 2025."""
+    return _ons_series("economy/inflationandpriceindices", "d7g7", "mm23")
+
+
+def fetch_ons_uk_unemployment():
+    """UK unemployment rate, aged 16+, seasonally adjusted (ONS MGSX/LMS)."""
+    return _ons_series("employmentandlabourmarket/peoplenotinwork/unemployment", "mgsx", "lms")
+
+
+def fetch_ons_uk_gdp_yoy():
+    """UK real GDP, quarter vs. same quarter a year ago, CVM SA %
+    (ONS IHYR/QNA) -- same reference quarter as the FRED mirror
+    (NGDPRSAXDCGBQ) since that's genuinely the latest UK GDP has been
+    published anywhere, but sourced directly instead of via a FRED mirror
+    that has lagged behind ONS on other series."""
+    return _ons_series("economy/grossdomesticproductgdp", "ihyr", "qna")
+
+
+# ------------------------------------------------------------------ ECB ----
+def fetch_ecb_eu_yield10y(start="2016-01-01"):
+    """Euro area AAA-rated 10-year yield curve spot rate -- ECB Statistical
+    Data Warehouse, updated daily. Replaces the FRED-mirrored "convergence
+    purposes" rate (IRLTLT01EZM156N), which only updates monthly and has
+    been running several months behind."""
+    try:
+        url = (
+            "https://data-api.ecb.europa.eu/service/data/YC/"
+            f"B.U2.EUR.4F.G_N_A.SV_C_YM.SR_10Y?format=csvdata&startPeriod={start}"
+        )
+        r = requests.get(url, headers=_HEADERS, timeout=_TIMEOUT)
+        r.raise_for_status()
+        df = pd.read_csv(io.StringIO(r.text))
+        df = df[["TIME_PERIOD", "OBS_VALUE"]].rename(columns={"TIME_PERIOD": "Date", "OBS_VALUE": "value"})
+        df["Date"] = pd.to_datetime(df["Date"])
+        df["value"] = pd.to_numeric(df["value"], errors="coerce")
+        return df.dropna().sort_values("Date").reset_index(drop=True)
+    except Exception:
+        return _empty()
+
+
+# ------------------------------------------------------------ Eurostat -----
+def fetch_eurostat_eu_unemployment(start="2010-01"):
+    """Euro area (21 countries) unemployment rate, seasonally adjusted --
+    Eurostat. Replaces the FRED-mirrored OECD series (LRHUTTTTEZM156S),
+    which stopped updating in 2023."""
+    try:
+        url = (
+            "https://ec.europa.eu/eurostat/api/dissemination/statistics/1.0/data/une_rt_m"
+            f"?format=JSON&geo=EA21&s_adj=SA&age=TOTAL&sex=T&unit=PC_ACT&sinceTimePeriod={start}"
+        )
+        r = requests.get(url, headers=_HEADERS, timeout=_TIMEOUT)
+        r.raise_for_status()
+        j = r.json()
+        time_idx = j.get("dimension", {}).get("time", {}).get("category", {}).get("index", {})
+        values = j.get("value", {})
+        rows = []
+        for period, idx in time_idx.items():
+            v = values.get(str(idx))
+            if v is None:
+                continue
+            rows.append({"Date": pd.to_datetime(period + "-01"), "value": v})
+        if not rows:
+            return _empty()
+        df = pd.DataFrame(rows)
+        df["value"] = pd.to_numeric(df["value"], errors="coerce")
+        return df.dropna().sort_values("Date").reset_index(drop=True)
+    except Exception:
+        return _empty()
+
+
 # -------------------------------------------------------------- helpers ----
 def yoy_change(df, periods=12):
     """Year-over-year fractional change from an index-level Date/value frame."""
@@ -374,7 +479,7 @@ def load_eu_economy():
     since = ten_years_ago()
     headline = parallel_fetch(
         {
-            "yield": lambda: fetch_fred("IRLTLT01EZM156N", since),
+            "yield": lambda: fetch_ecb_eu_yield10y(since),
             "policy": lambda: fetch_fred("ECBDFR", since),
             "cpi": lambda: fetch_fred("CP0000EZ19M086NEST", since),
             "gdp": lambda: fetch_fred("CLVMNACSCAB1GQEA19", since),
@@ -391,7 +496,11 @@ def load_eu_economy():
                 "stock": lambda t=c["stock"]: fetch_yahoo(t, "10y"),
                 "cpi": lambda code=c["code"]: fetch_fred(f"CP0000{code}M086NEST", since),
                 "unemployment": lambda code=c["code"]: fetch_fred(f"LRHUTTTT{code}M156S", since),
-                "gdp": lambda code=c["code"]: fetch_fred(f"NAEXKP01{code}Q189S", since),
+                # NAEXKP01{code}Q189S (OECD) stopped updating in 2023 and
+                # doesn't exist at all for Spain -- CLVMNACSCAB1GQ{code}
+                # (Eurostat, same series family as the EU-wide headline GDP
+                # below) is current for all four countries.
+                "gdp": lambda code=c["code"]: fetch_fred(f"CLVMNACSCAB1GQ{code}", since),
             }
         )
         countries[name] = {
@@ -418,17 +527,21 @@ def load_uk_economy():
         {
             "yield": lambda: fetch_fred("IRLTLT01GBM156N", since),
             "stock": lambda: fetch_yahoo("^FTSE", "10y"),
-            "cpi": lambda: fetch_fred("GBRCPIALLMINMEI", since),
-            "unemployment": lambda: fetch_fred("LRHUTTTTGBM156S", since),
-            "gdp": lambda: fetch_fred("NGDPRSAXDCGBQ", since),
+            # ONS direct -- the FRED mirrors of these three (GBRCPIALLMINMEI,
+            # LRHUTTTTGBM156S, NGDPRSAXDCGBQ) lag ONS's own releases, badly
+            # so for CPI (17 months stale). ONS already publishes each of
+            # these as a YoY rate, so no yoy_change() step needed.
+            "cpi": fetch_ons_uk_cpi_yoy,
+            "unemployment": fetch_ons_uk_unemployment,
+            "gdp": fetch_ons_uk_gdp_yoy,
         }
     )
     return {
         "bondYield10y": as_rate(_g(vals, "yield")),
         "stockIndex": _g(vals, "stock"),
-        "cpiYoY": yoy_change(_g(vals, "cpi"), 12),
+        "cpiYoY": as_rate(_g(vals, "cpi")),
         "unemployment": as_rate(_g(vals, "unemployment")),
-        "gdpYoY": yoy_change(_g(vals, "gdp"), 4),
+        "gdpYoY": as_rate(_g(vals, "gdp")),
     }
 
 
@@ -447,16 +560,20 @@ def load_comparison_data():
         {
             "gdp": lambda: fetch_fred("CLVMNACSCAB1GQEA19", since),
             "cpi": lambda: fetch_fred("CP0000EZ19M086NEST", since),
-            "yield": lambda: fetch_fred("IRLTLT01EZM156N", since),
-            "unemployment": lambda: fetch_fred("LRHUTTTTEZM156S", since),
+            # ECB/Eurostat direct -- the FRED mirrors of these two
+            # (IRLTLT01EZM156N, LRHUTTTTEZM156S) lag several months to
+            # several years behind the source.
+            "yield": lambda: fetch_ecb_eu_yield10y(since),
+            "unemployment": fetch_eurostat_eu_unemployment,
         }
     )
     uk = parallel_fetch(
         {
-            "gdp": lambda: fetch_fred("NGDPRSAXDCGBQ", since),
-            "cpi": lambda: fetch_fred("GBRCPIALLMINMEI", since),
             "yield": lambda: fetch_fred("IRLTLT01GBM156N", since),
-            "unemployment": lambda: fetch_fred("LRHUTTTTGBM156S", since),
+            # ONS direct -- see load_uk_economy() for why.
+            "gdp": fetch_ons_uk_gdp_yoy,
+            "cpi": fetch_ons_uk_cpi_yoy,
+            "unemployment": fetch_ons_uk_unemployment,
         }
     )
     norway = parallel_fetch(
@@ -471,13 +588,13 @@ def load_comparison_data():
         "gdpYoY": {
             "us": yoy_change(_g(us, "gdp"), 4),
             "eu": yoy_change(_g(eu, "gdp"), 4),
-            "uk": yoy_change(_g(uk, "gdp"), 4),
+            "uk": as_rate(_g(uk, "gdp")),
             "norway": filter_since(_g(norway, "gdp"), since),
         },
         "cpiYoY": {
             "us": yoy_change(_g(us, "cpi"), 12),
             "eu": yoy_change(_g(eu, "cpi"), 12),
-            "uk": yoy_change(_g(uk, "cpi"), 12),
+            "uk": as_rate(_g(uk, "cpi")),
             "norway": yoy_change(_g(norway, "cpi"), 12),
         },
         "bondYield10y": {
