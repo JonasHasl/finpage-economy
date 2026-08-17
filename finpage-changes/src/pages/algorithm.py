@@ -144,7 +144,7 @@ def create_portfolio_graph(title, dataframe, y_column, start_date, end_date, hei
     return fig
 
 
-def create_stocks_graph(title, stocks_data, start_date, end_date, height=700):
+def create_stocks_graph(stocks_data, start_date, end_date, height=700):
     if stocks_data.empty:
         fig = go.Figure()
         fig.add_annotation(text="No active stocks", showarrow=False, font=dict(size=16, color="#94a3b8"))
@@ -202,7 +202,6 @@ def create_stocks_graph(title, stocks_data, start_date, end_date, height=700):
     y_max += y_buffer
 
     fig.update_layout(
-        title=dict(text=title, x=0.5, font=dict(family="Helvetica", size=18)),
         yaxis_title="Cumulative Return",
         xaxis_title='Date',
         font=dict(family="Helvetica", size=15, color=colors['text']),
@@ -634,7 +633,6 @@ def update_dashboard(composition_sheet, period, currency):
     stocks_data = stocks_data.drop_duplicates(['Date', 'Symbol'], keep='last')
 
     fig_stocks = create_stocks_graph(
-        title=f'{period.upper()} Latest Composition Stocks ({currency})',
         stocks_data=stocks_data,
         start_date=start_date,
         end_date=today
