@@ -5,6 +5,7 @@ import dash_bootstrap_components as dbc
 import pandas as pd
 from dash import Input, Output, State, callback, dcc, html, dash_table
 from dash.exceptions import PreventUpdate
+from email_notify import EmailNotificationError, send_change_notification_email
 from workbook_store import get_workbook_path, replace_workbook_sheet, workbook_store
 
 
@@ -175,6 +176,11 @@ def build_read_only_table(df: pd.DataFrame, table_id: str):
     )
 
 
+def saved_sheet_editor_values(sheet_name: str):
+    display_df = dataframe_for_display(load_sheet(sheet_name))
+    return display_df.to_dict('records'), build_columns(display_df, editable=True)
+
+
 def build_proposed_sheet(sheet_name: str, from_date_raw: str, tickers):
     if not get_workbook_path().exists():
         raise FileNotFoundError('AlgoComposition.xlsx was not found in the project root.')
@@ -299,6 +305,7 @@ review_table_styles = base_table_style()
 layout = dbc.Container([
     dcc.Store(id='helper-sheet-columns-store'),
     dcc.Store(id='helper-selected-sheet-store'),
+    dcc.Store(id='helper-change-summary-store'),
 
     html.Div(className='beforediv'),
 
@@ -427,7 +434,29 @@ layout = dbc.Container([
                 'color': '#5f7488',
                 'marginBottom': '0.8rem'
             }),
-            html.Div(id='helper-current-sheet-table')
+            html.P(
+                'Edit cells, add rows, or remove rows here. Nothing is saved until you click Save edits to Excel.',
+                style={'margin': '0 0 0.8rem', 'color': '#516274'}
+            ),
+            html.Div([
+                html.Button('Add row', id='helper-current-add-row', n_clicks=0, style=SECONDARY_BUTTON_STYLE),
+                html.Button('Save edits to Excel', id='helper-current-save-button', n_clicks=0, style=BUTTON_STYLE),
+                html.Button('Discard unsaved edits', id='helper-current-reload-button', n_clicks=0, style=SECONDARY_BUTTON_STYLE),
+            ], style={'display': 'flex', 'flexWrap': 'wrap', 'gap': '12px', 'marginBottom': '0.8rem'}),
+            html.Div(id='helper-current-sheet-status-message', style={'marginBottom': '0.5rem'}),
+            dash_table.DataTable(
+                id='helper-current-sheet-editor',
+                data=[],
+                columns=[],
+                editable=True,
+                row_deletable=True,
+                sort_action='native',
+                filter_action='native',
+                page_size=20,
+                export_format='xlsx',
+                export_headers='display',
+                **review_table_styles
+            )
         ], style=SECTION_CARD_STYLE), width=12)
     ], style={'maxWidth': '1120px', 'margin': '0 auto 2rem auto'}),
 ], fluid=True)
@@ -438,36 +467,47 @@ layout = dbc.Container([
     Output('helper-save-status-message', 'children'),
     Output('helper-review-table', 'data'),
     Output('helper-review-table', 'columns'),
-    Output('helper-current-sheet-table', 'children'),
+    Output('helper-current-sheet-editor', 'data'),
+    Output('helper-current-sheet-editor', 'columns'),
     Output('helper-sheet-columns-store', 'data'),
     Output('helper-selected-sheet-store', 'data'),
+    Output('helper-current-sheet-status-message', 'children'),
+    Output('helper-change-summary-store', 'data'),
     Input('helper-model-selector', 'value'),
     Input('helper-build-button', 'n_clicks'),
     Input('helper-save-button', 'n_clicks'),
+    Input('helper-current-add-row', 'n_clicks'),
+    Input('helper-current-save-button', 'n_clicks'),
+    Input('helper-current-reload-button', 'n_clicks'),
     State('helper-from-date', 'date'),
     State('helper-ticker-input', 'value'),
     State('helper-review-table', 'data'),
+    State('helper-current-sheet-editor', 'data'),
+    State('helper-current-sheet-editor', 'columns'),
     State('helper-sheet-columns-store', 'data'),
     State('helper-selected-sheet-store', 'data'),
+    State('helper-change-summary-store', 'data'),
     prevent_initial_call=False
 )
-def helper_controller(model_value, build_clicks, save_clicks, from_date, ticker_text,
-                      review_table_data, stored_sheet_columns, stored_selected_sheet):
+def helper_controller(model_value, build_clicks, save_clicks, add_row_clicks,
+                      save_current_clicks, reload_current_clicks, from_date,
+                      ticker_text, review_table_data, current_sheet_data,
+                      current_sheet_columns, stored_sheet_columns,
+                      stored_selected_sheet, stored_change_summary):
     ctx = dash.callback_context
     triggered = ctx.triggered[0]['prop_id'].split('.')[0] if ctx.triggered else 'helper-model-selector'
-    current_sheet_table = dash.no_update
+    current_sheet_data_update = dash.no_update
+    current_sheet_columns_update = dash.no_update
 
     if model_value not in MODEL_TO_SHEET:
-        empty = html.Div('Select a model.', style={'padding': '1rem'})
-        return '', '', dash.no_update, dash.no_update, empty, dash.no_update, dash.no_update
+        return '', '', dash.no_update, dash.no_update, [], [], dash.no_update, dash.no_update, '', dash.no_update
 
     selected_sheet = MODEL_TO_SHEET[model_value]
 
     try:
-        current_sheet_table = build_read_only_table(load_sheet(selected_sheet), 'helper-current-sheet-table-inner')
-
         if triggered == 'helper-model-selector':
-            return '', '', dash.no_update, dash.no_update, current_sheet_table, dash.no_update, dash.no_update
+            current_sheet_data_update, current_sheet_columns_update = saved_sheet_editor_values(selected_sheet)
+            return '', '', [], [], current_sheet_data_update, current_sheet_columns_update, [], None, '', None
 
         if triggered == 'helper-build-button':
             if not from_date:
@@ -489,14 +529,25 @@ def helper_controller(model_value, build_clicks, save_clicks, from_date, ticker_
                 html.Div('Review or edit the proposed table below, then submit it to Excel.', style={'marginTop': '0.5rem'})
             ], color='info', style={'borderRadius': '16px'})
 
+            change_summary = {
+                'sheet_name': result['sheet_name'],
+                'from_date': result['from_date'],
+                'incoming_symbols': result['incoming_symbols'],
+                'outgoing_symbols': result['outgoing_symbols'],
+                'unchanged_symbols': result['unchanged_symbols'],
+            }
+
             return (
                 build_status,
                 '',
                 proposed_df.to_dict('records'),
                 review_columns,
-                current_sheet_table,
+                dash.no_update,
+                dash.no_update,
                 result['sheet_columns'],
-                result['sheet_name']
+                result['sheet_name'],
+                '',
+                change_summary
             )
 
         if triggered == 'helper-save-button':
@@ -510,14 +561,80 @@ def helper_controller(model_value, build_clicks, save_clicks, from_date, ticker_
             reviewed_df = pd.DataFrame(review_table_data)
             reviewed_df = validate_review_table(reviewed_df, stored_sheet_columns)
             save_reviewed_sheet(stored_selected_sheet, reviewed_df)
+            current_sheet_data_update, current_sheet_columns_update = saved_sheet_editor_values(stored_selected_sheet)
 
-            refreshed_current_table = build_read_only_table(load_sheet(stored_selected_sheet), 'helper-current-sheet-table-inner')
-
-            save_status = dbc.Alert(
-                (
+            save_message_lines = [
+                html.Div(
                     f"Saved reviewed table to sheet {stored_selected_sheet} and synced it to GitHub."
                     if workbook_store.uses_github
                     else f"Saved reviewed table to sheet {stored_selected_sheet} in AlgoComposition.xlsx."
+                )
+            ]
+
+            if stored_change_summary and stored_change_summary.get('sheet_name') == stored_selected_sheet:
+                try:
+                    send_change_notification_email(
+                        portfolio_label=MODEL_LABELS.get(stored_selected_sheet, stored_selected_sheet),
+                        from_date=stored_change_summary['from_date'],
+                        incoming=stored_change_summary['incoming_symbols'],
+                        outgoing=stored_change_summary['outgoing_symbols'],
+                        unchanged=stored_change_summary['unchanged_symbols'],
+                    )
+                    save_message_lines.append(
+                        html.Div('Notification email sent.', style={'marginTop': '0.4rem'})
+                    )
+                except EmailNotificationError as email_exc:
+                    save_message_lines.append(
+                        html.Div(f"Notification email not sent: {email_exc}", style={'marginTop': '0.4rem'})
+                    )
+
+            save_status = dbc.Alert(save_message_lines, color='success', style={'borderRadius': '16px'})
+
+            return (
+                dash.no_update,
+                save_status,
+                dash.no_update,
+                dash.no_update,
+                current_sheet_data_update,
+                current_sheet_columns_update,
+                dash.no_update,
+                dash.no_update,
+                '',
+                dash.no_update
+            )
+
+        if triggered == 'helper-current-add-row':
+            if not current_sheet_columns:
+                raise ValueError('The saved sheet is still loading. Please try again in a moment.')
+
+            blank_row = {column['id']: '' for column in current_sheet_columns}
+            return (
+                dash.no_update,
+                dash.no_update,
+                dash.no_update,
+                dash.no_update,
+                list(current_sheet_data or []) + [blank_row],
+                dash.no_update,
+                dash.no_update,
+                dash.no_update,
+                '',
+                dash.no_update
+            )
+
+        if triggered == 'helper-current-save-button':
+            if not current_sheet_data:
+                raise ValueError('The saved sheet is empty. Add a valid row before saving.')
+
+            current_sheet_columns = list(load_sheet(selected_sheet).columns)
+            edited_df = validate_review_table(pd.DataFrame(current_sheet_data), current_sheet_columns)
+            save_reviewed_sheet(selected_sheet, edited_df)
+            current_sheet_data_update, current_sheet_columns_update = saved_sheet_editor_values(selected_sheet)
+
+            save_status = dbc.Alert(
+                (
+                    f"Saved edits to sheet {selected_sheet} and synced them to GitHub."
+                    if workbook_store.uses_github
+                    else f"Saved edits to sheet {selected_sheet} in AlgoComposition.xlsx."
                 ),
                 color='success',
                 style={'borderRadius': '16px'}
@@ -525,11 +642,35 @@ def helper_controller(model_value, build_clicks, save_clicks, from_date, ticker_
 
             return (
                 dash.no_update,
+                dash.no_update,
+                dash.no_update,
+                dash.no_update,
+                current_sheet_data_update,
+                current_sheet_columns_update,
+                dash.no_update,
+                dash.no_update,
                 save_status,
+                dash.no_update
+            )
+
+        if triggered == 'helper-current-reload-button':
+            current_sheet_data_update, current_sheet_columns_update = saved_sheet_editor_values(selected_sheet)
+            discard_status = dbc.Alert(
+                'Discarded unsaved edits and reloaded the saved sheet.',
+                color='secondary',
+                style={'borderRadius': '16px'}
+            )
+
+            return (
                 dash.no_update,
                 dash.no_update,
-                refreshed_current_table,
                 dash.no_update,
+                dash.no_update,
+                current_sheet_data_update,
+                current_sheet_columns_update,
+                dash.no_update,
+                dash.no_update,
+                discard_status,
                 dash.no_update
             )
 
@@ -539,6 +680,9 @@ def helper_controller(model_value, build_clicks, save_clicks, from_date, ticker_
         error_alert = dbc.Alert(str(exc), color='danger', style={'borderRadius': '16px'})
 
         if triggered == 'helper-save-button':
-            return dash.no_update, error_alert, dash.no_update, dash.no_update, current_sheet_table, dash.no_update, dash.no_update
+            return dash.no_update, error_alert, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, '', dash.no_update
 
-        return error_alert, '', dash.no_update, dash.no_update, current_sheet_table, dash.no_update, dash.no_update
+        if triggered in {'helper-current-add-row', 'helper-current-save-button', 'helper-current-reload-button'}:
+            return dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, error_alert, dash.no_update
+
+        return error_alert, '', dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, '', dash.no_update
