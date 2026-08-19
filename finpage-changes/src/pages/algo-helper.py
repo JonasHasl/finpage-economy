@@ -5,6 +5,7 @@ import dash_bootstrap_components as dbc
 import pandas as pd
 from dash import Input, Output, State, callback, dcc, html, dash_table
 from dash.exceptions import PreventUpdate
+from email_notify import EmailNotificationError, send_change_notification_email
 from workbook_store import get_workbook_path, replace_workbook_sheet, workbook_store
 
 
@@ -304,6 +305,7 @@ review_table_styles = base_table_style()
 layout = dbc.Container([
     dcc.Store(id='helper-sheet-columns-store'),
     dcc.Store(id='helper-selected-sheet-store'),
+    dcc.Store(id='helper-change-summary-store'),
 
     html.Div(className='beforediv'),
 
@@ -470,6 +472,7 @@ layout = dbc.Container([
     Output('helper-sheet-columns-store', 'data'),
     Output('helper-selected-sheet-store', 'data'),
     Output('helper-current-sheet-status-message', 'children'),
+    Output('helper-change-summary-store', 'data'),
     Input('helper-model-selector', 'value'),
     Input('helper-build-button', 'n_clicks'),
     Input('helper-save-button', 'n_clicks'),
@@ -483,27 +486,28 @@ layout = dbc.Container([
     State('helper-current-sheet-editor', 'columns'),
     State('helper-sheet-columns-store', 'data'),
     State('helper-selected-sheet-store', 'data'),
+    State('helper-change-summary-store', 'data'),
     prevent_initial_call=False
 )
 def helper_controller(model_value, build_clicks, save_clicks, add_row_clicks,
                       save_current_clicks, reload_current_clicks, from_date,
                       ticker_text, review_table_data, current_sheet_data,
                       current_sheet_columns, stored_sheet_columns,
-                      stored_selected_sheet):
+                      stored_selected_sheet, stored_change_summary):
     ctx = dash.callback_context
     triggered = ctx.triggered[0]['prop_id'].split('.')[0] if ctx.triggered else 'helper-model-selector'
     current_sheet_data_update = dash.no_update
     current_sheet_columns_update = dash.no_update
 
     if model_value not in MODEL_TO_SHEET:
-        return '', '', dash.no_update, dash.no_update, [], [], dash.no_update, dash.no_update, ''
+        return '', '', dash.no_update, dash.no_update, [], [], dash.no_update, dash.no_update, '', dash.no_update
 
     selected_sheet = MODEL_TO_SHEET[model_value]
 
     try:
         if triggered == 'helper-model-selector':
             current_sheet_data_update, current_sheet_columns_update = saved_sheet_editor_values(selected_sheet)
-            return '', '', [], [], current_sheet_data_update, current_sheet_columns_update, [], None, ''
+            return '', '', [], [], current_sheet_data_update, current_sheet_columns_update, [], None, '', None
 
         if triggered == 'helper-build-button':
             if not from_date:
@@ -525,6 +529,14 @@ def helper_controller(model_value, build_clicks, save_clicks, add_row_clicks,
                 html.Div('Review or edit the proposed table below, then submit it to Excel.', style={'marginTop': '0.5rem'})
             ], color='info', style={'borderRadius': '16px'})
 
+            change_summary = {
+                'sheet_name': result['sheet_name'],
+                'from_date': result['from_date'],
+                'incoming_symbols': result['incoming_symbols'],
+                'outgoing_symbols': result['outgoing_symbols'],
+                'unchanged_symbols': result['unchanged_symbols'],
+            }
+
             return (
                 build_status,
                 '',
@@ -534,7 +546,8 @@ def helper_controller(model_value, build_clicks, save_clicks, add_row_clicks,
                 dash.no_update,
                 result['sheet_columns'],
                 result['sheet_name'],
-                ''
+                '',
+                change_summary
             )
 
         if triggered == 'helper-save-button':
@@ -550,15 +563,32 @@ def helper_controller(model_value, build_clicks, save_clicks, add_row_clicks,
             save_reviewed_sheet(stored_selected_sheet, reviewed_df)
             current_sheet_data_update, current_sheet_columns_update = saved_sheet_editor_values(stored_selected_sheet)
 
-            save_status = dbc.Alert(
-                (
+            save_message_lines = [
+                html.Div(
                     f"Saved reviewed table to sheet {stored_selected_sheet} and synced it to GitHub."
                     if workbook_store.uses_github
                     else f"Saved reviewed table to sheet {stored_selected_sheet} in AlgoComposition.xlsx."
-                ),
-                color='success',
-                style={'borderRadius': '16px'}
-            )
+                )
+            ]
+
+            if stored_change_summary and stored_change_summary.get('sheet_name') == stored_selected_sheet:
+                try:
+                    send_change_notification_email(
+                        portfolio_label=MODEL_LABELS.get(stored_selected_sheet, stored_selected_sheet),
+                        from_date=stored_change_summary['from_date'],
+                        incoming=stored_change_summary['incoming_symbols'],
+                        outgoing=stored_change_summary['outgoing_symbols'],
+                        unchanged=stored_change_summary['unchanged_symbols'],
+                    )
+                    save_message_lines.append(
+                        html.Div('Notification email sent.', style={'marginTop': '0.4rem'})
+                    )
+                except EmailNotificationError as email_exc:
+                    save_message_lines.append(
+                        html.Div(f"Notification email not sent: {email_exc}", style={'marginTop': '0.4rem'})
+                    )
+
+            save_status = dbc.Alert(save_message_lines, color='success', style={'borderRadius': '16px'})
 
             return (
                 dash.no_update,
@@ -569,7 +599,8 @@ def helper_controller(model_value, build_clicks, save_clicks, add_row_clicks,
                 current_sheet_columns_update,
                 dash.no_update,
                 dash.no_update,
-                ''
+                '',
+                dash.no_update
             )
 
         if triggered == 'helper-current-add-row':
@@ -586,7 +617,8 @@ def helper_controller(model_value, build_clicks, save_clicks, add_row_clicks,
                 dash.no_update,
                 dash.no_update,
                 dash.no_update,
-                ''
+                '',
+                dash.no_update
             )
 
         if triggered == 'helper-current-save-button':
@@ -617,7 +649,8 @@ def helper_controller(model_value, build_clicks, save_clicks, add_row_clicks,
                 current_sheet_columns_update,
                 dash.no_update,
                 dash.no_update,
-                save_status
+                save_status,
+                dash.no_update
             )
 
         if triggered == 'helper-current-reload-button':
@@ -637,7 +670,8 @@ def helper_controller(model_value, build_clicks, save_clicks, add_row_clicks,
                 current_sheet_columns_update,
                 dash.no_update,
                 dash.no_update,
-                discard_status
+                discard_status,
+                dash.no_update
             )
 
         raise PreventUpdate
@@ -646,9 +680,9 @@ def helper_controller(model_value, build_clicks, save_clicks, add_row_clicks,
         error_alert = dbc.Alert(str(exc), color='danger', style={'borderRadius': '16px'})
 
         if triggered == 'helper-save-button':
-            return dash.no_update, error_alert, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, ''
+            return dash.no_update, error_alert, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, '', dash.no_update
 
         if triggered in {'helper-current-add-row', 'helper-current-save-button', 'helper-current-reload-button'}:
-            return dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, error_alert
+            return dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, error_alert, dash.no_update
 
-        return error_alert, '', dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, ''
+        return error_alert, '', dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, '', dash.no_update
