@@ -21,6 +21,7 @@ from concurrent.futures import ThreadPoolExecutor
 import pandas as pd
 import requests
 import yfinance as yf
+from bs4 import BeautifulSoup
 from fredapi import Fred
 
 FRED_API_KEY = "29f9bb6865c0b3be320b44a846d539ea"
@@ -84,6 +85,43 @@ def fetch_yahoo(ticker, period="10y"):
             df["Date"] = df["Date"].dt.tz_localize(None)
         df["value"] = pd.to_numeric(df["value"], errors="coerce")
         return df.dropna().sort_values("Date").reset_index(drop=True)
+    except Exception:
+        return _empty()
+
+
+def fetch_shiller_pe(start="2000-01-01"):
+    """Monthly Shiller P/E observations published by multpl.com."""
+    try:
+        r = requests.get(
+            "https://www.multpl.com/shiller-pe/table/by-month",
+            headers=_HEADERS,
+            timeout=_TIMEOUT,
+        )
+        r.raise_for_status()
+        soup = BeautifulSoup(r.text, "html.parser")
+        table = soup.select_one("table")
+        if table is None:
+            return _empty()
+
+        rows = []
+        for tr in table.find_all("tr"):
+            cells = tr.find_all("td")
+            if len(cells) != 2:
+                continue
+            rows.append(
+                {
+                    "Date": pd.to_datetime(cells[0].get_text(strip=True), errors="coerce"),
+                    "value": pd.to_numeric(
+                        cells[1].get_text(strip=True).replace(",", ""),
+                        errors="coerce",
+                    ),
+                }
+            )
+
+        if not rows:
+            return _empty()
+        df = pd.DataFrame(rows).dropna(subset=["Date", "value"])
+        return filter_since(df.sort_values("Date").reset_index(drop=True), start)
     except Exception:
         return _empty()
 
@@ -223,10 +261,10 @@ def fetch_ssb_unemployment():
 
 
 def fetch_ssb_gdp():
-    """Norway real GDP annual growth rate -- table 09189."""
+    """Norway monthly real GDP YoY rate -- table 11721."""
     try:
         r = requests.post(
-            "https://data.ssb.no/api/pxwebapi/v2/tables/09189/data?lang=en&outputFormat=json-stat2",
+            "https://data.ssb.no/api/pxwebapi/v2/tables/11721/data?lang=en&outputFormat=json-stat2",
             headers={**_HEADERS, "Content-Type": "application/json"},
             json={
                 "Selection": [
@@ -243,9 +281,15 @@ def fetch_ssb_gdp():
         values = j.get("value", [])
         rows = []
         for tc, tp in t_idx.items():
-            if tp >= len(values) or values[tp] is None:
+            match = re.match(r"^(\d{4})M(\d{2})$", tc)
+            if not match or tp >= len(values) or values[tp] is None:
                 continue
-            rows.append({"Date": f"{tc}-01-01", "value": values[tp] / 100.0})
+            rows.append(
+                {
+                    "Date": f"{match.group(1)}-{match.group(2)}-01",
+                    "value": values[tp] / 100.0,
+                }
+            )
         if not rows:
             return _empty()
         df = pd.DataFrame(rows)
@@ -360,11 +404,31 @@ def fetch_eurostat_eu_unemployment(start="2010-01"):
 
 # -------------------------------------------------------------- helpers ----
 def yoy_change(df, periods=12):
-    """Year-over-year fractional change from an index-level Date/value frame."""
+    """Calendar-aligned year-over-year change from an index-level series.
+
+    Monthly sources occasionally omit an observation, so a positional
+    ``pct_change(12)`` can compare the wrong months. Quarterly data has the
+    same risk. Match by calendar period instead.
+    """
     if df is None or df.empty:
         return _empty()
     out = df.copy().sort_values("Date").reset_index(drop=True)
-    out["value"] = out["value"].pct_change(periods=periods)
+    out["Date"] = pd.to_datetime(out["Date"])
+    out["value"] = pd.to_numeric(out["value"], errors="coerce")
+    frequency = "M" if periods == 12 else "Q" if periods == 4 else None
+    if frequency is None:
+        out["value"] = out["value"].pct_change(periods=periods)
+        return out.dropna(subset=["value"])[["Date", "value"]].reset_index(drop=True)
+
+    out["_period"] = out["Date"].dt.to_period(frequency)
+    out = out.dropna(subset=["value"]).drop_duplicates("_period", keep="last")
+    value_by_period = dict(zip(out["_period"], out["value"]))
+    previous = pd.Series(
+        [value_by_period.get(period - periods) for period in out["_period"]],
+        index=out.index,
+        dtype="float64",
+    )
+    out["value"] = out["value"] / previous - 1
     out = out.dropna(subset=["value"])
     return out[["Date", "value"]].reset_index(drop=True)
 
@@ -443,6 +507,55 @@ EU_COUNTRIES = {
     "italy": {"code": "IT", "stock": "FTSEMIB.MI", "label": "Italy"},
     "spain": {"code": "ES", "stock": "^IBEX", "label": "Spain"},
 }
+
+
+def load_us_economy():
+    """Current US market and macro series from their direct page sources."""
+    since = "2000-01-01"
+    vals = parallel_fetch(
+        {
+            "yield": lambda: fetch_fred("DGS10", since),
+            "stock": lambda: fetch_yahoo("^GSPC", "max"),
+            "cpi": lambda: fetch_fred("CPIAUCSL", since),
+            "money": lambda: fetch_fred("M2SL", since),
+            "spread": lambda: fetch_fred("T10Y2Y", since),
+            "unemployment": lambda: fetch_fred("UNRATE", since),
+            "trade": lambda: fetch_fred("BOPGSTB", since),
+            "gdp": lambda: fetch_fred("GDPC1", since),
+            "interest": lambda: fetch_fred("A091RC1Q027SBEA", since),
+            "revenue": lambda: fetch_fred("FGRECPT", since),
+            "shiller": lambda: fetch_shiller_pe(since),
+        }
+    )
+
+    trade = _g(vals, "trade").copy()
+    if not trade.empty:
+        # BOPGSTB is published in millions of dollars; display trillions.
+        trade["value"] = pd.to_numeric(trade["value"], errors="coerce") / 1_000_000
+        trade = trade.dropna(subset=["value"])
+
+    interest = _g(vals, "interest")
+    revenue = _g(vals, "revenue")
+    interest_to_revenue = _empty()
+    if not interest.empty and not revenue.empty:
+        ratio = pd.merge(interest, revenue, on="Date", suffixes=("_interest", "_revenue"))
+        ratio["value"] = ratio["value_interest"] / ratio["value_revenue"]
+        interest_to_revenue = ratio[["Date", "value"]].replace(
+            [float("inf"), float("-inf")], pd.NA
+        ).dropna(subset=["value"])
+
+    return {
+        "bondYield10y": as_rate(_g(vals, "yield")),
+        "stockIndex": filter_since(_g(vals, "stock"), since),
+        "cpiYoY": yoy_change(_g(vals, "cpi"), 12),
+        "moneySupply": _g(vals, "money"),
+        "spread10y2y": as_rate(_g(vals, "spread")),
+        "unemployment": as_rate(_g(vals, "unemployment")),
+        "tradeBalance": trade,
+        "gdpYoY": yoy_change(_g(vals, "gdp"), 4),
+        "interestToRevenue": interest_to_revenue,
+        "shillerPE": _g(vals, "shiller"),
+    }
 
 
 def load_norway_economy():
@@ -615,6 +728,7 @@ def load_comparison_data():
 _cache = TTLCache(ttl=6 * 3600)
 
 _MARKET_LOADERS = {
+    "us": load_us_economy,
     "norway": load_norway_economy,
     "eu": load_eu_economy,
     "uk": load_uk_economy,

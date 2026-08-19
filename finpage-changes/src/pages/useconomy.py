@@ -7,7 +7,6 @@ import plotly.graph_objects as go
 from dash import html, dcc, callback, callback_context
 from dash.dependencies import Input, Output, State
 
-import updateEcon
 import data_sources as ds
 
 dash.register_page(__name__, path="/economy")
@@ -63,73 +62,61 @@ def load_economy_data():
     return pd.read_csv("econW_updated.csv", parse_dates=["Date"])
 
 
-economy = pd.DataFrame()
-df_with_econ = pd.DataFrame()
-gdp_yoy = pd.DataFrame()
+us_data = {}
 latestdate = date.today()
 firstdate = date(2000, 1, 1)
 
 
-def load_data():
-    global economy, df_with_econ, latestdate, firstdate, gdp_yoy
+def _fallback_series(dataframe, column, scale=1.0):
+    if dataframe.empty or column not in dataframe.columns:
+        return pd.DataFrame(columns=["Date", "value"])
+    frame = dataframe[["Date", column]].rename(columns={column: "value"}).copy()
+    frame["Date"] = pd.to_datetime(frame["Date"])
+    frame["value"] = pd.to_numeric(frame["value"], errors="coerce") * scale
+    frame = frame.dropna(subset=["Date", "value"]).sort_values("Date")
+    # The legacy cache is daily and forward-filled. Keep change dates so a
+    # monthly fallback does not pretend its last observation occurred today.
+    return frame.loc[frame["value"].ne(frame["value"].shift())].reset_index(drop=True)
 
-    try:
-        updateEcon.updateEcon(reload="incremental")
-    except Exception as exc:
-        # A failed incremental fetch (e.g. FRED rejecting a realtime_start
-        # that's "tomorrow" from its own US-timezone perspective -- which
-        # happens for a few hours after local midnight in timezones ahead
-        # of US Eastern, like CET/CEST) shouldn't block loading the CSV's
-        # already-cached, still-valid historical data below.
-        print(f"useconomy: incremental update failed, using cached econW_updated.csv ({exc})")
 
-    economy = load_economy_data().copy()
-    economy["Date"] = pd.to_datetime(economy["Date"])
+def _cached_us_fallback():
+    cached = load_economy_data().copy()
+    return {
+        "bondYield10y": _fallback_series(cached, "TenYield", 0.01),
+        "stockIndex": _fallback_series(cached, "Close"),
+        "cpiYoY": _fallback_series(cached, "CPI YoY"),
+        "moneySupply": _fallback_series(cached, "m2"),
+        "spread10y2y": _fallback_series(cached, "T10Y2Y", 0.01),
+        "unemployment": _fallback_series(cached, "unemp_rate", 0.01),
+        "tradeBalance": _fallback_series(cached, "Trade Balance", 0.000001),
+        "shillerPE": _fallback_series(cached, "Shiller_PE"),
+    }
 
-    numeric_columns = [
-        "unemp_rate",
-        "TenYield",
-        "Shiller_PE",
-        "Close",
-        "Trade Balance",
-        "m2",
-        "T10Y2Y",
-        "CPI YoY",
+
+def load_data(force=False):
+    global us_data, latestdate, firstdate
+
+    if force:
+        ds.invalidate_market("us")
+    loaded = ds.get_market_data("us")
+    fallback = _cached_us_fallback()
+    keys = set(loaded) | set(fallback)
+    us_data = {}
+    for key in keys:
+        frame = loaded.get(key)
+        if frame is None or frame.empty:
+            frame = fallback.get(key, pd.DataFrame(columns=["Date", "value"]))
+        us_data[key] = frame
+
+    available_dates = [
+        pd.to_datetime(frame["Date"]).max()
+        for frame in us_data.values()
+        if frame is not None and not frame.empty and "Date" in frame.columns
     ]
-    for col in numeric_columns:
-        if col in economy.columns:
-            economy[col] = pd.to_numeric(economy[col], errors="coerce")
-
-    if "unemp_rate" in economy.columns:
-        economy["unemp_rate"] = economy["unemp_rate"] / 100
-    if "TenYield" in economy.columns:
-        economy["TenYield"] = economy["TenYield"] / 100
-    if "Shiller_PE" in economy.columns:
-        economy["Shiller_PE"] = economy["Shiller_PE"].round(2)
-    if "Close" in economy.columns:
-        economy["Close"] = economy["Close"].round(2)
-    if "Trade Balance" in economy.columns:
-        economy["Trade Balance"] = economy["Trade Balance"].round(0)
-        economy["Trade Balance"] = economy["Trade Balance"] * 1_000_000
-        economy["Trade Balance"] = economy["Trade Balance"] / 1e12
-
-    # ds.fetch_fred fails soft (returns an empty frame on any error) so a
-    # FRED hiccup here can't take down the whole callback -- see below.
-    interest_df = ds.fetch_fred("A091RC1Q027SBEA").rename(columns={"value": "Interest Payments"})
-    revenue_df = ds.fetch_fred("FGRECPT").rename(columns={"value": "Total Revenue"})
-
-    df_with_econ = pd.merge(interest_df, revenue_df, on="Date", how="inner")
-    if not df_with_econ.empty:
-        df_with_econ["Interest to Income Ratio"] = (
-            df_with_econ["Interest Payments"] / df_with_econ["Total Revenue"]
-        ).round(2)
-
-    # Real GDP YoY -- not part of the incremental CSV pipeline above, fetched
-    # directly (same source series used for every other market on this page).
-    gdp_yoy = ds.yoy_change(ds.fetch_fred("GDPC1"), 4)
-
-    latestdate = economy["Date"].dt.date.iloc[-1]
-    firstdate = economy["Date"].dt.date.iloc[0]
+    if not available_dates:
+        raise ValueError("No US economy data is available from live sources or the local cache")
+    latestdate = max(available_dates).date()
+    firstdate = date(2000, 1, 1)
 
 
 try:
@@ -354,7 +341,7 @@ def create_graph(
 
 
 # --------------------------------------------------------- comparison tab --
-COMPARISON_COUNTRY_LABELS = {"us": "US", "eu": "EU", "uk": "UK", "norway": "Norway"}
+COMPARISON_COUNTRY_LABELS = {"us": "US", "eu": "Euro Area", "uk": "UK", "norway": "Norway"}
 COMPARISON_COUNTRY_COLORS = {
     "us": CHART_COLORS["blue"],
     "eu": CHART_COLORS["green"],
@@ -559,7 +546,7 @@ def render_eu(d, starts, ends, country_key="germany"):
     )
     graphs = render_country_graphs(
         [
-            ("EU 10Y Govt Yield", None, d.get("bondYield10y"), "%", "ECB", CHART_COLORS["amber"]),
+            ("Euro Area 10Y Govt Yield", None, d.get("bondYield10y"), "%", "ECB", CHART_COLORS["amber"]),
             ("ECB Policy Rate", None, d.get("policyRate"), "%", "FRED", CHART_COLORS["violet"]),
             ("CPI YoY", "Euro area inflation", d.get("cpiYoY"), "%", "FRED", CHART_COLORS["red"]),
             ("GDP YoY", "Euro area real GDP", d.get("gdpYoY"), "%", "FRED", CHART_COLORS["green"]),
@@ -697,7 +684,7 @@ cardeconomy = dbc.Container(
             children=[
                 dcc.Tab(label="US", value="us", className="economy-tab", selected_className="economy-tab--selected"),
                 dcc.Tab(label="Norway", value="norway", className="economy-tab", selected_className="economy-tab--selected"),
-                dcc.Tab(label="EU", value="eu", className="economy-tab", selected_className="economy-tab--selected"),
+                dcc.Tab(label="Euro Area", value="eu", className="economy-tab", selected_className="economy-tab--selected"),
                 dcc.Tab(label="UK", value="uk", className="economy-tab", selected_className="economy-tab--selected"),
                 dcc.Tab(label="Comparison", value="comparison", className="economy-tab", selected_className="economy-tab--selected"),
             ],
@@ -731,7 +718,7 @@ cardeconomy = dbc.Container(
                 html.Div(id="us-stats-row", className="economy-stat-row"),
                 html.Div(
                     [
-                        graph_slot("ten-year-yield-graph", source="Yahoo Finance"),
+                        graph_slot("ten-year-yield-graph", source="FRED"),
                         graph_slot("shiller-pe-graph", source="multpl.com"),
                     ],
                     className="parent-row economy-row",
@@ -815,14 +802,14 @@ layout = dbc.Container(
     prevent_initial_call=False,
 )
 def update_all_graphs(range_selector, n_intervals, n_clicks):
-    global economy, df_with_econ, firstdate, latestdate
+    global us_data, firstdate, latestdate
 
     ctx = callback_context
     if ctx.triggered:
         trigger_id = ctx.triggered[0]["prop_id"].split(".")[0]
         if trigger_id == "refresh-button":
             try:
-                load_data()
+                load_data(force=True)
             except Exception as exc:
                 # A failed refresh (FRED/Yahoo/multpl hiccup) shouldn't crash
                 # the callback and blank every graph -- keep showing the last
@@ -831,7 +818,7 @@ def update_all_graphs(range_selector, n_intervals, n_clicks):
 
     if n_intervals and n_intervals > 0:
         try:
-            load_data()
+            load_data(force=True)
         except Exception as exc:
             print(f"useconomy: interval refresh failed, keeping last-known data ({exc})")
 
@@ -840,11 +827,6 @@ def update_all_graphs(range_selector, n_intervals, n_clicks):
 
     if range_selector == "ytd":
         ytd_start = date(datetime.now().year, 1, 1)
-        if not economy.empty and "Date" in economy.columns:
-            economy_max_date = pd.to_datetime(economy["Date"]).dt.date.max()
-            if economy_max_date < ytd_start:
-                ytd_start = date(economy_max_date.year, 1, 1)
-
         start_date = ytd_start
         start_date_infl = ytd_start
         end_date = latestdate_obj
@@ -855,62 +837,62 @@ def update_all_graphs(range_selector, n_intervals, n_clicks):
 
     ten_year_yield = create_graph(
         CHART_COLORS["amber"], "Yield", "10-yr Treasury Yield %",
-        economy, "TenYield", tick="%", starts=start_date, ends=end_date
+        us_data.get("bondYield10y"), "value", tick="%", starts=start_date, ends=end_date
     )
 
     shiller_pe = create_graph(
         CHART_COLORS["green"], "Shiller P/E Ratio", "Shiller P/E Ratio",
-        economy, "Shiller_PE", tick=" ", starts=start_date, ends=end_date
+        us_data.get("shillerPE"), "value", tick=" ", starts=start_date, ends=end_date
     )
 
     sp500 = create_graph(
         CHART_COLORS["blue"], "Price", "S&P 500 Index",
-        economy, "Close", tick=" ", starts=start_date, ends=end_date
+        us_data.get("stockIndex"), "value", tick=" ", starts=start_date, ends=end_date
     )
 
     inflation = create_graph(
         CHART_COLORS["red"], "Inflation YoY", "Inflation US YoY-Change %",
-        economy, "CPI YoY", tick="%", starts=start_date_infl, ends=end_date, yoy=True
+        us_data.get("cpiYoY"), "value", tick="%", starts=start_date_infl, ends=end_date, yoy=True
     )
 
     interest_to_income = create_graph(
         CHART_COLORS["rose"], "Interest to Income Ratio", "Federal Interest Payments to Revenues Ratio",
-        df_with_econ, "Interest to Income Ratio", tick="%", starts=start_date, ends=end_date
+        us_data.get("interestToRevenue"), "value", tick="%", starts=start_date, ends=end_date
     )
 
     money_supply = create_graph(
         CHART_COLORS["cyan"], "Money Supply M2", "Money Supply US M2",
-        economy, "m2", tick=" ", starts=start_date, ends=end_date
+        us_data.get("moneySupply"), "value", tick=" ", starts=start_date, ends=end_date
     )
 
     t10y2y = create_graph(
-        CHART_COLORS["violet"], "T10Y2Y", "10-y 2-y Spread",
-        economy, "T10Y2Y", tick=" ", starts=start_date, ends=end_date, hline0=False
+        CHART_COLORS["violet"], "Spread", "10Y-2Y Treasury Spread",
+        us_data.get("spread10y2y"), "value", tick="%", starts=start_date, ends=end_date, hline0=True
     )
 
     unemployment = create_graph(
         CHART_COLORS["cyan"], "Unemployment Rate", "Unemployment Rate US",
-        economy, "unemp_rate", tick="%", starts=start_date, ends=end_date
+        us_data.get("unemployment"), "value", tick="%", starts=start_date, ends=end_date
     )
 
     tradebalance = create_graph(
         CHART_COLORS["blue"],
         "Trade Balance (Exports-Imports) in Trillions $, Monthly",
         "Trade Balance US in Trillions $, Monthly",
-        economy, "Trade Balance", tick=" ", starts=start_date, ends=end_date, trade=True
+        us_data.get("tradeBalance"), "value", tick=" ", starts=start_date, ends=end_date, trade=True
     )
 
     gdp = create_graph(
         CHART_COLORS["green"], "GDP YoY", "US Real GDP YoY %",
-        gdp_yoy, "value", tick="%", starts=start_date, ends=end_date
+        us_data.get("gdpYoY"), "value", tick="%", starts=start_date, ends=end_date
     )
 
     us_stats = stat_row(
-        stat_card("10Y Yield", fmt_pct(col_last(economy, "TenYield")), "Yahoo Finance"),
-        stat_card("Unemployment", fmt_pct(col_last(economy, "unemp_rate")), "FRED"),
-        stat_card("CPI YoY", fmt_pct(col_last(economy, "CPI YoY")), "FRED"),
-        stat_card("GDP YoY", fmt_pct(ds.last_value(gdp_yoy)), "FRED"),
-        stat_card("Shiller P/E", fmt_num(col_last(economy, "Shiller_PE"), 1), "multpl.com"),
+        stat_card("10Y Yield", fmt_pct(ds.last_value(us_data.get("bondYield10y"))), "FRED"),
+        stat_card("Unemployment", fmt_pct(ds.last_value(us_data.get("unemployment"))), "FRED"),
+        stat_card("CPI YoY", fmt_pct(ds.last_value(us_data.get("cpiYoY"))), "FRED"),
+        stat_card("GDP YoY", fmt_pct(ds.last_value(us_data.get("gdpYoY"))), "FRED"),
+        stat_card("Shiller P/E", fmt_num(ds.last_value(us_data.get("shillerPE")), 1), "multpl.com"),
     )
 
     return (
