@@ -76,6 +76,54 @@ def convert_cumulative_returns_to_nok(cumulative_returns, fx_close):
     return (1 + cumulative) * fx_ratio - 1
 
 
+def calculate_returns_since_inclusion(symbol_returns, compositions, end_date):
+    """Return each composition row's performance from inclusion through end_date.
+
+    The first available trading observation on or after ``ValidFrom`` is the
+    baseline, so its pre-inclusion daily return is deliberately excluded. The
+    input return stream may already be currency-adjusted (for example, NOK).
+    Results retain the composition frame's original index for direct mapping.
+    """
+    returns = pd.DataFrame(symbol_returns).copy()
+    compositions = pd.DataFrame(compositions).copy()
+
+    if compositions.empty:
+        return pd.Series(dtype=float, index=compositions.index)
+
+    returns["Date"] = pd.to_datetime(returns["Date"], utc=True).dt.tz_convert(None)
+    returns["Return"] = pd.to_numeric(returns["Return"], errors="coerce")
+    returns = returns.sort_values(["Symbol", "Date"])
+    returns = returns.drop_duplicates(["Symbol", "Date"], keep="last")
+
+    end_date = pd.Timestamp(end_date)
+    if end_date.tzinfo is not None:
+        end_date = end_date.tz_convert(None)
+
+    results = {}
+    for row_index, row in compositions.iterrows():
+        valid_from = pd.Timestamp(row["ValidFrom"])
+        if valid_from.tzinfo is not None:
+            valid_from = valid_from.tz_convert(None)
+
+        history = returns[
+            (returns["Symbol"] == row["Symbol"])
+            & (returns["Date"] >= valid_from)
+            & (returns["Date"] <= end_date)
+        ]
+        daily_returns = history["Return"].dropna().copy()
+
+        if daily_returns.empty:
+            results[row_index] = float("nan")
+            continue
+
+        # Rebase at the first available close on/after ValidFrom. Its stored
+        # daily return compares with the prior close and is outside the period.
+        daily_returns.iloc[0] = 0.0
+        results[row_index] = float((1 + daily_returns).prod() - 1)
+
+    return pd.Series(results, dtype=float).reindex(compositions.index)
+
+
 def build_combined_performance(model_window, testing_returns, currency="USD", fx_close=None):
     training = load_training_returns(model_window)
     training["ACWI_Cumulative"] = _load_training_benchmark(training.index)

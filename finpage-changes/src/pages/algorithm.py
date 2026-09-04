@@ -9,6 +9,7 @@ import numpy as np
 from workbook_store import get_workbook_path
 from portfolio_history import (
     build_combined_performance,
+    calculate_returns_since_inclusion,
     calculate_strategy_max_drawdown,
     get_training_dates,
 )
@@ -759,6 +760,11 @@ def update_dashboard(composition_sheet, period, currency):
         ytd_by_symbol = _ytd_return_by_symbol(
             full_symbol_df, pd.Timestamp(today.year, 1, 1)
         )
+        since_inclusion = calculate_returns_since_inclusion(
+            full_symbol_df,
+            current_comps,
+            today,
+        )
 
         current_comps['ValidFrom'] = pd.to_datetime(current_comps['ValidFrom']).dt.strftime('%Y-%m-%d')
         current_comps['ValidTo'] = pd.to_datetime(current_comps['ValidTo']).dt.strftime('%Y-%m-%d')
@@ -771,8 +777,23 @@ def update_dashboard(composition_sheet, period, currency):
         current_comps['YTD'] = current_comps['YTD_Value'].map(
             lambda v: '—' if pd.isna(v) else f'{v:+.1f}%'
         )
+        current_comps['SinceInclusion_Value'] = pd.to_numeric(
+            since_inclusion.reindex(current_comps.index), errors='coerce'
+        ) * 100
+        current_comps['SinceInclusion'] = current_comps['SinceInclusion_Value'].map(
+            lambda v: '—' if pd.isna(v) else f'{v:+.1f}%'
+        )
 
-        current_comps_display = current_comps[['Company', 'Symbol', 'YTD', 'YTD_Value', 'ValidFrom', 'ValidTo']].copy()
+        current_comps_display = current_comps[[
+            'Company',
+            'Symbol',
+            'YTD',
+            'YTD_Value',
+            'SinceInclusion',
+            'SinceInclusion_Value',
+            'ValidFrom',
+            'ValidTo',
+        ]].copy()
 
         current_comps_display['Company'] = [
             f'<a href="https://www.marketwatch.com/investing/stock/{row["Symbol"].lower()}" target="_blank" rel="noopener noreferrer">{row["Company"]}</a>'
@@ -785,6 +806,7 @@ def update_dashboard(composition_sheet, period, currency):
                 {'name': 'Company', 'id': 'Company', 'presentation': 'markdown', 'type': 'text'},
                 {'name': 'Symbol', 'id': 'Symbol'},
                 {'name': 'YTD Return', 'id': 'YTD'},
+                {'name': 'Since Inclusion', 'id': 'SinceInclusion'},
                 {'name': 'Valid From', 'id': 'ValidFrom'},
                 {'name': 'Valid To', 'id': 'ValidTo'}
             ],
@@ -819,6 +841,16 @@ def update_dashboard(composition_sheet, period, currency):
                 },
                 {
                     'if': {'column_id': 'YTD', 'filter_query': '{YTD_Value} < 0'},
+                    'color': '#f87171',
+                    'fontWeight': '700'
+                },
+                {
+                    'if': {'column_id': 'SinceInclusion', 'filter_query': '{SinceInclusion_Value} > 0'},
+                    'color': '#4ade80',
+                    'fontWeight': '700'
+                },
+                {
+                    'if': {'column_id': 'SinceInclusion', 'filter_query': '{SinceInclusion_Value} < 0'},
                     'color': '#f87171',
                     'fontWeight': '700'
                 },

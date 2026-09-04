@@ -9,6 +9,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from portfolio_history import (
     build_combined_performance,
     calculate_max_drawdown,
+    calculate_returns_since_inclusion,
     calculate_strategy_max_drawdown,
     convert_cumulative_returns_to_nok,
     get_training_dates,
@@ -84,6 +85,55 @@ class PortfolioHistoryTests(unittest.TestCase):
 
         self.assertAlmostEqual(converted.iloc[0], 1.10 * 1.10 - 1)
         self.assertAlmostEqual(converted.iloc[1], 1.21 * 1.20 - 1)
+
+    def test_since_inclusion_rebases_at_first_available_trading_close(self):
+        symbol_returns = pd.DataFrame(
+            {
+                "Date": pd.to_datetime(
+                    ["2025-01-02", "2025-01-03", "2025-01-06", "2025-01-07"]
+                ),
+                "Symbol": ["AAA"] * 4,
+                "Return": [0.10, 0.05, -0.10, 0.20],
+            }
+        )
+        compositions = pd.DataFrame(
+            {
+                "Symbol": ["AAA", "AAA"],
+                "ValidFrom": pd.to_datetime(["2025-01-02", "2025-01-04"]),
+            },
+            index=[7, 11],
+        )
+
+        actual = calculate_returns_since_inclusion(
+            symbol_returns, compositions, pd.Timestamp("2025-01-07")
+        )
+
+        # Jan 2 is the baseline, so only Jan 3, Jan 6, and Jan 7 compound.
+        self.assertAlmostEqual(actual.loc[7], 1.05 * 0.90 * 1.20 - 1)
+        # Jan 4 is a Saturday; Jan 6 becomes the baseline, then Jan 7 compounds.
+        self.assertAlmostEqual(actual.loc[11], 0.20)
+
+    def test_since_inclusion_respects_end_date_and_missing_symbols(self):
+        symbol_returns = pd.DataFrame(
+            {
+                "Date": pd.to_datetime(["2025-01-02", "2025-01-03", "2025-01-06"]),
+                "Symbol": ["AAA"] * 3,
+                "Return": [0.00, 0.10, 0.25],
+            }
+        )
+        compositions = pd.DataFrame(
+            {
+                "Symbol": ["AAA", "MISSING"],
+                "ValidFrom": pd.to_datetime(["2025-01-02", "2025-01-02"]),
+            }
+        )
+
+        actual = calculate_returns_since_inclusion(
+            symbol_returns, compositions, pd.Timestamp("2025-01-03")
+        )
+
+        self.assertAlmostEqual(actual.iloc[0], 0.10)
+        self.assertTrue(pd.isna(actual.iloc[1]))
 
 
 if __name__ == "__main__":
