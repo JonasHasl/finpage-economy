@@ -807,8 +807,7 @@ def update_dashboard(composition_sheet, period, currency):
                 {'name': 'Symbol', 'id': 'Symbol'},
                 {'name': 'YTD Return', 'id': 'YTD'},
                 {'name': 'Since Inclusion', 'id': 'SinceInclusion'},
-                {'name': 'Valid From', 'id': 'ValidFrom'},
-                {'name': 'Valid To', 'id': 'ValidTo'}
+                {'name': 'Valid From', 'id': 'ValidFrom'}
             ],
             markdown_options={"html": True},
             style_cell={
