@@ -217,7 +217,7 @@ def create_portfolio_graph(
         paper_bgcolor='rgba(0,0,0,0)',
         yaxis=dict(range=[y_min, y_max]),
         height=height,
-        margin={'l': 50, 'r': 50, 't': 115 if has_phases else 70, 'b': 50},
+        margin={'l': 38, 'r': 10, 't': 105 if has_phases else 58, 'b': 44},
         hovermode='x unified',
         legend=dict(
             orientation="h",
@@ -227,7 +227,9 @@ def create_portfolio_graph(
             x=0.5,
             bgcolor='rgba(22,32,52,0.85)',
             bordercolor='#33455f',
-            borderwidth=1
+            borderwidth=1,
+            font=dict(size=12),
+            tracegroupgap=2,
         )
     )
 
@@ -541,10 +543,16 @@ layout = html.Div(dbc.Container([
     # Always-on: the full training + testing history in the selected currency.
     dbc.Row([
         dbc.Col(html.Div([
-            html.Div("Training + testing performance", style=SECTION_LABEL_STYLE),
-            dcc.Graph(id='portfolio-cumulative-chart', className='algo-hero-graph', style={'height': '100%'})
-        ], style=SECTION_CARD_STYLE), width=12)
-    ], style={'maxWidth': '1120px', 'margin': '0 auto 1.5rem auto'}),
+            html.Div("Training + testing performance", className='algo-section-label', style=SECTION_LABEL_STYLE),
+            dcc.Graph(
+                id='portfolio-cumulative-chart',
+                className='algo-performance-graph algo-full-history-graph',
+                responsive=True,
+                config={'displayModeBar': False, 'responsive': True},
+                style={'height': '700px'},
+            )
+        ], className='algo-section-card algo-graph-card', style=SECTION_CARD_STYLE), width=12)
+    ], className='algo-section-row', style={'maxWidth': '1120px', 'margin': '0 auto 1.5rem auto'}),
 
     # Selection options sit below the always-on graph.
     controls_panel,
@@ -552,10 +560,16 @@ layout = html.Div(dbc.Container([
     # Results for the selected performance window: graph, then metrics, then table.
     dbc.Row([
         dbc.Col(html.Div([
-            html.Div("Selected-period performance", id='period-graph-label', style=SECTION_LABEL_STYLE),
-            dcc.Graph(id='period-cumulative-chart', style={'height': '100%'})
-        ], style=SECTION_CARD_STYLE), width=12)
-    ], style={'maxWidth': '1120px', 'margin': '0 auto 1.5rem auto'}),
+            html.Div("Selected-period performance", id='period-graph-label', className='algo-section-label', style=SECTION_LABEL_STYLE),
+            dcc.Graph(
+                id='period-cumulative-chart',
+                className='algo-performance-graph algo-selected-period-graph',
+                responsive=True,
+                config={'displayModeBar': False, 'responsive': True},
+                style={'height': '700px'},
+            )
+        ], className='algo-section-card algo-graph-card', style=SECTION_CARD_STYLE), width=12)
+    ], className='algo-section-row', style={'maxWidth': '1120px', 'margin': '0 auto 1.5rem auto'}),
 
     html.Div([
         dbc.Row([
@@ -563,7 +577,7 @@ layout = html.Div(dbc.Container([
             dbc.Col(html.Div(id='volatility-card'), xs=12, md=6, lg=4),
             dbc.Col(html.Div(id='max-drawdown-card'), xs=12, md=6, lg=4)
         ], className='g-4 justify-content-center')
-    ], style={
+    ], className='algo-metrics', style={
         'maxWidth': '1120px',
         'margin': '0 auto 1.5rem auto',
         'padding': '0.25rem 0'
@@ -575,11 +589,15 @@ layout = html.Div(dbc.Container([
                 html.Div("Current composition", style={
                     **SECTION_LABEL_STYLE,
                     'padding': '0 0.2rem'
-                }),
+                }, className='algo-section-label'),
+                html.Div(
+                    "Swipe horizontally to view all columns",
+                    className='algo-table-scroll-hint',
+                ),
                 html.Div(id='current-composition-table')
-            ], style=SECTION_CARD_STYLE), width=12)
-        ], style={'marginTop': '1.25rem'})
-    ], style={'maxWidth': '1120px', 'margin': '0 auto 2rem auto'}),
+            ], className='algo-section-card algo-composition-card', style=SECTION_CARD_STYLE), width=12)
+        ], className='algo-section-row', style={'marginTop': '1.25rem'})
+    ], className='algo-composition-wrap', style={'maxWidth': '1120px', 'margin': '0 auto 2rem auto'}),
 
     html.Br(),
 ], fluid=True), className='algo-shell')
@@ -820,6 +838,13 @@ def update_dashboard(composition_sheet, period, currency):
                 'backgroundColor': 'hsl(222, 36%, 12%)',
                 'border': '1px solid #33455f'
             },
+            style_cell_conditional=[
+                {'if': {'column_id': 'Company'}, 'minWidth': '145px', 'width': '24%'},
+                {'if': {'column_id': 'Symbol'}, 'minWidth': '70px', 'width': '12%'},
+                {'if': {'column_id': 'YTD'}, 'minWidth': '95px', 'width': '18%'},
+                {'if': {'column_id': 'SinceInclusion'}, 'minWidth': '120px', 'width': '24%'},
+                {'if': {'column_id': 'ValidFrom'}, 'minWidth': '105px', 'width': '22%'},
+            ],
             style_data={
                 'backgroundColor': 'hsl(222, 36%, 12%)',
                 'border': '1px solid #33455f'
@@ -870,6 +895,7 @@ def update_dashboard(composition_sheet, period, currency):
             },
             style_table={
                 'overflowX': 'auto',
+                'WebkitOverflowScrolling': 'touch',
                 'borderRadius': '14px',
                 'boxShadow': 'none',
                 'border': '1px solid #33455f',

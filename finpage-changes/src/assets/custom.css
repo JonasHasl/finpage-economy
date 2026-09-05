@@ -1419,6 +1419,206 @@ a.home-dark-card:hover::after {
   border-color: hsl(199 92% 60% / 0.4);
 }
 
+.algo-performance-graph {
+  width: 100%;
+  min-width: 0;
+}
+
+#current-composition-table .dash-spreadsheet-container {
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+.algo-table-scroll-hint {
+  display: none;
+}
+
+@media (max-width: 576px) {
+  .algo-shell > .container-fluid {
+    padding-right: 6px !important;
+    padding-left: 6px !important;
+  }
+
+  .algo-shell .algo-section-row {
+    --bs-gutter-x: 0.5rem;
+    margin-bottom: 1rem !important;
+  }
+
+  .algo-shell .algo-hero {
+    margin-bottom: 1rem !important;
+    padding: 1.35rem 0.85rem 1.2rem !important;
+    border-radius: 20px !important;
+  }
+
+  .algo-shell .algo-hero-badge {
+    padding: 0.4rem 0.7rem !important;
+    font-size: 0.72rem !important;
+    letter-spacing: 0.025em !important;
+    white-space: nowrap;
+  }
+
+  .algo-shell .algo-hero .headerfinvest {
+    margin-bottom: 0.65rem !important;
+    font-size: clamp(1.55rem, 7.2vw, 1.85rem);
+  }
+
+  .algo-shell .algo-hero .normal-text {
+    font-size: 0.91rem !important;
+    line-height: 1.55 !important;
+  }
+
+  .algo-shell .algo-trend {
+    height: 37%;
+    padding: 0 3%;
+    opacity: 0.32;
+  }
+
+  .algo-shell .algo-section-card {
+    padding: 0.8rem 0.45rem !important;
+    border-radius: 18px !important;
+  }
+
+  .algo-shell .algo-graph-card {
+    padding-right: 0.2rem !important;
+    padding-bottom: 0.45rem !important;
+    padding-left: 0.2rem !important;
+  }
+
+  .algo-shell .algo-section-label {
+    margin-bottom: 0.35rem !important;
+    padding: 0 0.55rem !important;
+    font-size: 0.76rem !important;
+    line-height: 1.35;
+  }
+
+  .algo-shell .algo-full-history-graph {
+    height: 510px !important;
+  }
+
+  .algo-shell .algo-selected-period-graph {
+    height: 450px !important;
+  }
+
+  .algo-shell .js-plotly-plot .xtick text,
+  .algo-shell .js-plotly-plot .ytick text,
+  .algo-shell .js-plotly-plot .g-xtitle text,
+  .algo-shell .js-plotly-plot .g-ytitle text {
+    font-size: 11px !important;
+  }
+
+  .algo-shell .algo-controls-panel {
+    margin-bottom: 1rem !important;
+    padding: 1rem 0.85rem 0.85rem !important;
+    border-radius: 18px !important;
+  }
+
+  .algo-shell .algo-controls-panel .row {
+    --bs-gutter-y: 0.85rem;
+  }
+
+  .algo-shell #period-selector,
+  .algo-shell #currency-selector {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.45rem;
+  }
+
+  .algo-shell #period-selector label,
+  .algo-shell #currency-selector label {
+    display: flex !important;
+    align-items: center !important;
+    width: 100%;
+    min-height: 44px;
+    margin: 0 !important;
+    padding: 0.5rem 0.6rem !important;
+    border: 1px solid #33455f;
+    border-radius: 999px;
+    background: hsl(222, 30%, 17%);
+    font-size: 0.82rem;
+    text-align: center;
+  }
+
+  .algo-shell #period-selector label.selected,
+  .algo-shell #currency-selector label.selected {
+    border-color: hsl(199 92% 60% / 0.72);
+    background: hsl(210 38% 20%);
+  }
+
+  .algo-shell #period-selector .dash-options-list-option-text,
+  .algo-shell #currency-selector .dash-options-list-option-text {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center;
+    flex: 1 1 auto;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: 0 !important;
+    background: transparent !important;
+  }
+
+  .algo-shell #period-selector input,
+  .algo-shell #currency-selector input {
+    flex: 0 0 auto;
+    margin-right: 0.35rem !important;
+  }
+
+  .algo-shell .algo-metrics {
+    margin-bottom: 1rem !important;
+  }
+
+  .algo-shell .algo-metrics .row {
+    --bs-gutter-x: 0.5rem;
+    --bs-gutter-y: 0.75rem;
+  }
+
+  .algo-shell .algo-metrics .card-body {
+    padding: 1.1rem 1.15rem !important;
+  }
+
+  .algo-shell .algo-composition-wrap {
+    margin-bottom: 1rem !important;
+  }
+
+  .algo-shell .algo-composition-wrap .algo-section-row {
+    margin-top: 0.75rem !important;
+  }
+
+  .algo-shell .algo-composition-card {
+    padding-right: 0.4rem !important;
+    padding-left: 0.4rem !important;
+  }
+
+  .algo-shell .algo-table-scroll-hint {
+    display: block;
+    padding: 0 0.55rem 0.45rem;
+    color: #8fa2bb;
+    font-size: 0.7rem;
+    line-height: 1.35;
+  }
+
+  .algo-shell #current-composition-table .dash-spreadsheet-container {
+    overflow-x: auto !important;
+  }
+
+  .algo-shell #current-composition-table .column-actions {
+    display: none;
+  }
+
+  .algo-shell #current-composition-table td,
+  .algo-shell #current-composition-table th {
+    padding: 10px 9px !important;
+    font-size: 0.76rem !important;
+  }
+}
+
+@media (hover: none) {
+  .algo-shell .card:hover {
+    transform: none;
+    border-color: rgba(52, 70, 100, 0.9) !important;
+    box-shadow: none !important;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .algo-shell::before,
   .algo-shell::after,
