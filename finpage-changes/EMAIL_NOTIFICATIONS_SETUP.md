@@ -28,3 +28,15 @@ The "Save edits to Excel" editor (direct edits to the currently saved sheet) doe
 ## Normal operation
 
 After a successful save, the page's status message will show either "Notification email sent." or a specific reason it wasn't (e.g. missing API key, Resend API error), so you always know the save itself succeeded independent of email delivery. [algo-helper callback](src/pages/algo-helper.py)
+
+## Troubleshooting
+
+**`Resend rejected the email (HTTP 403): ...`** — while `EMAIL_FROM` is still the shared, unverified `onboarding@resend.dev` sender, Resend only allows delivery to the single email address you signed up to Resend with. Sending to any other address, or to a list containing one, gets rejected. Fixes:
+- Set `EMAIL_TO` to exactly the address you used to create the Resend account, or
+- [Verify a sending domain](https://resend.com/docs/dashboard/domains/introduction) in Resend, then change `EMAIL_FROM` to an address on that domain — after that, `EMAIL_TO` can be any address(es).
+
+**`HTTP 401`** — `RESEND_API_KEY` is missing, revoked, or mistyped; check the key value in Render's Environment page against Resend's dashboard.
+
+**`HTTP 422`** — usually a malformed sender/recipient address; check `EMAIL_FROM` and `EMAIL_TO` are valid `name <email>` or plain email strings.
+
+The error message returned to the page now includes Resend's own explanation (not just the HTTP status), so the status alert after a failed send should already say which of the above applies.

@@ -104,6 +104,22 @@ def send_change_notification_email(
             json=payload,
             timeout=15,
         )
-        response.raise_for_status()
     except requests.RequestException as exc:
-        raise EmailNotificationError(f"Could not send change-notification email: {exc}") from exc
+        raise EmailNotificationError(f"Could not reach Resend: {exc}") from exc
+
+    if response.status_code >= 400:
+        raise EmailNotificationError(
+            f"Resend rejected the email (HTTP {response.status_code}): {_extract_error_detail(response)}"
+        )
+
+
+def _extract_error_detail(response) -> str:
+    try:
+        body = response.json()
+        message = body.get("message") if isinstance(body, dict) else None
+        if message:
+            return message
+    except ValueError:
+        pass
+    text = (getattr(response, "text", "") or "").strip()
+    return text[:300] if text else "no further details returned"

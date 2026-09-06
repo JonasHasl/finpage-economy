@@ -2,34 +2,33 @@ import sys
 import unittest
 from pathlib import Path
 
-import requests
-
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from email_notify import EmailNotificationError, send_change_notification_email
 
 
 class FakeResponse:
-    def __init__(self, status_code, payload=None):
+    def __init__(self, status_code, payload=None, text=None):
         self.status_code = status_code
-        self._payload = payload or {}
+        self._payload = payload
+        self.text = text if text is not None else ""
 
     def json(self):
+        if self._payload is None:
+            raise ValueError("no JSON body")
         return self._payload
-
-    def raise_for_status(self):
-        if self.status_code >= 400:
-            raise requests.HTTPError(f"HTTP {self.status_code}")
 
 
 class FakeSession:
-    def __init__(self, status_code=200):
+    def __init__(self, status_code=200, payload=None, text=None):
         self.status_code = status_code
+        self.payload = payload
+        self.text = text
         self.calls = []
 
     def post(self, url, **kwargs):
         self.calls.append((url, kwargs))
-        return FakeResponse(self.status_code)
+        return FakeResponse(self.status_code, payload=self.payload, text=self.text)
 
 
 class SendChangeNotificationEmailTests(unittest.TestCase):
@@ -108,8 +107,8 @@ class SendChangeNotificationEmailTests(unittest.TestCase):
         self.assertEqual(session.calls, [])
 
     def test_http_failure_raises_email_notification_error(self):
-        session = FakeSession(status_code=401)
-        with self.assertRaises(EmailNotificationError):
+        session = FakeSession(status_code=401, payload={"message": "Invalid API key"})
+        with self.assertRaises(EmailNotificationError) as ctx:
             send_change_notification_email(
                 portfolio_label="Since 2020 Model",
                 from_date="2026-08-19",
@@ -119,6 +118,45 @@ class SendChangeNotificationEmailTests(unittest.TestCase):
                 environment={"RESEND_API_KEY": "bad-key"},
                 session=session,
             )
+        self.assertIn("401", str(ctx.exception))
+        self.assertIn("Invalid API key", str(ctx.exception))
+
+    def test_sandbox_recipient_restriction_surfaces_resend_message(self):
+        session = FakeSession(
+            status_code=403,
+            payload={
+                "message": (
+                    "You can only send testing emails to your own email address "
+                    "(jonas_fbh@hotmail.com). To send emails to other recipients, "
+                    "please verify a domain."
+                )
+            },
+        )
+        with self.assertRaises(EmailNotificationError) as ctx:
+            send_change_notification_email(
+                portfolio_label="Since 2020 Model",
+                from_date="2026-08-19",
+                incoming=["NVDA"],
+                outgoing=["INTU"],
+                unchanged=[],
+                environment={"RESEND_API_KEY": "test-key", "EMAIL_TO": "someone@else.com"},
+                session=session,
+            )
+        self.assertIn("verify a domain", str(ctx.exception))
+
+    def test_error_without_json_body_falls_back_to_raw_text(self):
+        session = FakeSession(status_code=500, payload=None, text="Internal Server Error")
+        with self.assertRaises(EmailNotificationError) as ctx:
+            send_change_notification_email(
+                portfolio_label="Since 2020 Model",
+                from_date="2026-08-19",
+                incoming=["NVDA"],
+                outgoing=["INTU"],
+                unchanged=[],
+                environment={"RESEND_API_KEY": "test-key"},
+                session=session,
+            )
+        self.assertIn("Internal Server Error", str(ctx.exception))
 
 
 if __name__ == "__main__":
