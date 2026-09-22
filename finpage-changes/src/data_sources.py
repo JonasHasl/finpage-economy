@@ -22,10 +22,7 @@ import pandas as pd
 import requests
 import yfinance as yf
 from bs4 import BeautifulSoup
-from fredapi import Fred
-
-FRED_API_KEY = "29f9bb6865c0b3be320b44a846d539ea"
-_fred = Fred(api_key=FRED_API_KEY)
+from pandas_datareader import data as web
 
 _HEADERS = {"User-Agent": "FinPage/1.0 (web)"}
 _TIMEOUT = 20
@@ -62,8 +59,7 @@ def last_value(df):
 def fetch_fred(series_id, observation_start=None):
     """Raw FRED series as an ascending Date/value frame."""
     try:
-        s = _fred.get_series(series_id, observation_start=observation_start)
-        df = s.reset_index()
+        df = web.DataReader(series_id, "fred", start=observation_start).reset_index()
         df.columns = ["Date", "value"]
         df["Date"] = pd.to_datetime(df["Date"])
         df["value"] = pd.to_numeric(df["value"], errors="coerce")
@@ -185,7 +181,7 @@ def fetch_norges_fx(base, start="2016-01-01"):
 
 # ------------------------------------------------------------------ SSB ----
 def fetch_ssb_cpi():
-    """Norway CPI index (2015=100), monthly -- table 14709."""
+    """Norway CPI index (2025=100), monthly -- table 14709."""
     try:
         r = requests.get(
             "https://data.ssb.no/api/pxwebapi/v2/tables/14709/data?lang=en&outputFormat=json-stat2",
@@ -201,7 +197,7 @@ def fetch_ssb_cpi():
         size = j.get("size", [])
         if len(size) < 3:
             return _empty()
-        m_size, c_size, t_size = size[0], size[1], size[2]
+        c_size, t_size = size[1], size[2]
         cc_pos = c_idx.get("KpiIndMnd", 0)
         values = j.get("value", [])
         rows = []
@@ -343,11 +339,8 @@ def fetch_ons_uk_unemployment():
 
 def fetch_ons_uk_gdp_yoy():
     """UK real GDP, quarter vs. same quarter a year ago, CVM SA %
-    (ONS IHYR/QNA) -- same reference quarter as the FRED mirror
-    (NGDPRSAXDCGBQ) since that's genuinely the latest UK GDP has been
-    published anywhere, but sourced directly instead of via a FRED mirror
-    that has lagged behind ONS on other series."""
-    return _ons_series("economy/grossdomesticproductgdp", "ihyr", "qna")
+    (ONS IHYR/PN2), sourced directly instead of via a lagging FRED mirror."""
+    return _ons_series("economy/grossdomesticproductgdp", "ihyr", "pn2")
 
 
 # ------------------------------------------------------------------ ECB ----
@@ -372,31 +365,165 @@ def fetch_ecb_eu_yield10y(start="2016-01-01"):
         return _empty()
 
 
+def fetch_ecb_deposit_rate(start="2016-01-01"):
+    """ECB deposit facility rate, percent per annum, normalized to a fraction.
+
+    The ECB publishes a daily level even when the policy rate is unchanged. Keep
+    change dates plus the latest observation so the chart is a readable step
+    series while its as-of date remains truthful.
+    """
+    try:
+        url = (
+            "https://data-api.ecb.europa.eu/service/data/FM/"
+            f"D.U2.EUR.4F.KR.DFR.LEV?format=csvdata&startPeriod={start}"
+        )
+        r = requests.get(url, headers=_HEADERS, timeout=_TIMEOUT)
+        r.raise_for_status()
+        raw = pd.read_csv(io.StringIO(r.text))
+        df = raw[["TIME_PERIOD", "OBS_VALUE"]].rename(
+            columns={"TIME_PERIOD": "Date", "OBS_VALUE": "value"}
+        )
+        df["Date"] = pd.to_datetime(df["Date"])
+        df["value"] = pd.to_numeric(df["value"], errors="coerce") / 100.0
+        df = df.dropna().sort_values("Date").reset_index(drop=True)
+        if df.empty:
+            return _empty()
+        changes = df.loc[df["value"].ne(df["value"].shift())].copy()
+        if changes.iloc[-1]["Date"] != df.iloc[-1]["Date"]:
+            changes = pd.concat([changes, df.tail(1)], ignore_index=True)
+        return changes.reset_index(drop=True)
+    except Exception:
+        return _empty()
+
+
 # ------------------------------------------------------------ Eurostat -----
+def _eurostat_series(dataset, filters, start=None, scale=1.0):
+    """Return a one-dimensional Eurostat JSON-stat series as Date/value."""
+    try:
+        params = {"format": "JSON", "lang": "en", **filters}
+        if start:
+            params["sinceTimePeriod"] = start
+        r = requests.get(
+            f"https://ec.europa.eu/eurostat/api/dissemination/statistics/1.0/data/{dataset}",
+            params=params,
+            headers=_HEADERS,
+            timeout=_TIMEOUT,
+        )
+        r.raise_for_status()
+        payload = r.json()
+        time_idx = (
+            payload.get("dimension", {})
+            .get("time", {})
+            .get("category", {})
+            .get("index", {})
+        )
+        values = payload.get("value", {})
+        rows = []
+        for period, position in time_idx.items():
+            if isinstance(values, dict):
+                value = values.get(str(position), values.get(position))
+            else:
+                value = values[position] if position < len(values) else None
+            if value is None:
+                continue
+            quarter = re.match(r"^(\d{4})-Q([1-4])$", period)
+            if quarter:
+                month = (int(quarter.group(2)) - 1) * 3 + 1
+                observation_date = pd.Timestamp(int(quarter.group(1)), month, 1)
+            else:
+                observation_date = pd.to_datetime(period, errors="coerce")
+            rows.append({"Date": observation_date, "value": value})
+        if not rows:
+            return _empty()
+        df = pd.DataFrame(rows)
+        df["value"] = pd.to_numeric(df["value"], errors="coerce") * scale
+        return df.dropna().sort_values("Date").reset_index(drop=True)
+    except Exception:
+        return _empty()
+
+
+def _month_period(start):
+    return pd.to_datetime(start).strftime("%Y-%m")
+
+
+def _quarter_period(start):
+    timestamp = pd.to_datetime(start)
+    return f"{timestamp.year}-Q{timestamp.quarter}"
+
+
+def fetch_eurostat_eu_cpi_yoy(start="2016-01-01"):
+    """Euro-area changing-composition all-items HICP annual rate, monthly."""
+    return _eurostat_series(
+        "prc_hicp_minr",
+        {"geo": "EA", "coicop18": "TOTAL", "unit": "RCH_A"},
+        _month_period(start),
+        scale=0.01,
+    )
+
+
+def fetch_eurostat_eu_gdp_yoy(start="2016-01-01"):
+    """Euro-area changing-composition real GDP YoY rate, quarterly."""
+    return _eurostat_series(
+        "namq_10_gdp",
+        {
+            "geo": "EA",
+            "na_item": "B1GQ",
+            "unit": "CLV_PCH_SM",
+            "s_adj": "SCA",
+        },
+        _quarter_period(start),
+        scale=0.01,
+    )
+
+
 def fetch_eurostat_eu_unemployment(start="2010-01"):
     """Euro area (21 countries) unemployment rate, seasonally adjusted --
     Eurostat. Replaces the FRED-mirrored OECD series (LRHUTTTTEZM156S),
     which stopped updating in 2023."""
+    return _eurostat_series(
+        "une_rt_m",
+        {
+            "geo": "EA21",
+            "s_adj": "SA",
+            "age": "TOTAL",
+            "sex": "T",
+            "unit": "PC_ACT",
+        },
+        _month_period(start),
+        scale=0.01,
+    )
+
+
+# ------------------------------------------------------ Bank of England ----
+def fetch_boe_uk_yield10y(start="2016-01-01"):
+    """UK 10-year nominal par gilt yield (BoE IUDMNPY), daily."""
     try:
-        url = (
-            "https://ec.europa.eu/eurostat/api/dissemination/statistics/1.0/data/une_rt_m"
-            f"?format=JSON&geo=EA21&s_adj=SA&age=TOTAL&sex=T&unit=PC_ACT&sinceTimePeriod={start}"
+        start_date = pd.to_datetime(start)
+        end_date = pd.Timestamp.today()
+        r = requests.get(
+            "https://www.bankofengland.co.uk/boeapps/database/_iadb-fromshowcolumns.asp",
+            params={
+                "csv.x": "yes",
+                "Datefrom": start_date.strftime("%d/%b/%Y"),
+                "Dateto": end_date.strftime("%d/%b/%Y"),
+                "SeriesCodes": "IUDMNPY",
+                "CSVF": "TN",
+                "UsingCodes": "Y",
+                "VPD": "Y",
+                "VFD": "N",
+            },
+            headers=_HEADERS,
+            timeout=_TIMEOUT,
         )
-        r = requests.get(url, headers=_HEADERS, timeout=_TIMEOUT)
         r.raise_for_status()
-        j = r.json()
-        time_idx = j.get("dimension", {}).get("time", {}).get("category", {}).get("index", {})
-        values = j.get("value", {})
-        rows = []
-        for period, idx in time_idx.items():
-            v = values.get(str(idx))
-            if v is None:
-                continue
-            rows.append({"Date": pd.to_datetime(period + "-01"), "value": v})
-        if not rows:
+        raw = pd.read_csv(io.StringIO(r.text))
+        if "DATE" not in raw.columns or "IUDMNPY" not in raw.columns:
             return _empty()
-        df = pd.DataFrame(rows)
-        df["value"] = pd.to_numeric(df["value"], errors="coerce")
+        df = raw[["DATE", "IUDMNPY"]].rename(
+            columns={"DATE": "Date", "IUDMNPY": "value"}
+        )
+        df["Date"] = pd.to_datetime(df["Date"], errors="coerce")
+        df["value"] = pd.to_numeric(df["value"], errors="coerce") / 100.0
         return df.dropna().sort_values("Date").reset_index(drop=True)
     except Exception:
         return _empty()
@@ -481,15 +608,47 @@ class TTLCache:
         self._store = {}
         self._lock = threading.Lock()
 
-    def get_or_load(self, key, loader):
+    @staticmethod
+    def _merge_last_good(previous, current):
+        """Keep valid cached frames when a partial refresh returns empties."""
+        if isinstance(current, pd.DataFrame):
+            if current.empty and isinstance(previous, pd.DataFrame) and not previous.empty:
+                return previous, True
+            return current, current.empty
+        if isinstance(current, dict):
+            prior = previous if isinstance(previous, dict) else {}
+            merged = {}
+            degraded = False
+            for child_key in set(prior) | set(current):
+                if child_key not in current:
+                    merged[child_key] = prior[child_key]
+                    degraded = True
+                    continue
+                merged[child_key], child_degraded = TTLCache._merge_last_good(
+                    prior.get(child_key), current[child_key]
+                )
+                degraded = degraded or child_degraded
+            return merged, degraded
+        if current is None and previous is not None:
+            return previous, True
+        return current, False
+
+    def get_or_load(self, key, loader, force=False):
         with self._lock:
             entry = self._store.get(key)
             fresh = entry and (time.time() - entry[1]) < self.ttl
-        if fresh:
+        if fresh and not force:
             return entry[0]
-        value = loader()
+        loaded = loader()
+        previous = entry[0] if entry else None
+        value, degraded = self._merge_last_good(previous, loaded)
+        loaded_at = time.time()
+        if degraded:
+            # Preserve stale-but-valid observations and retry the failed source
+            # after five minutes instead of caching an empty refresh for six hours.
+            loaded_at -= max(0, self.ttl - 5 * 60)
         with self._lock:
-            self._store[key] = (value, time.time())
+            self._store[key] = (value, loaded_at)
         return value
 
     def invalidate(self, key=None):
@@ -530,9 +689,21 @@ def load_us_economy():
 
     trade = _g(vals, "trade").copy()
     if not trade.empty:
-        # BOPGSTB is published in millions of dollars; display trillions.
-        trade["value"] = pd.to_numeric(trade["value"], errors="coerce") / 1_000_000
+        # BOPGSTB is published in millions of dollars; display USD billions.
+        trade["value"] = pd.to_numeric(trade["value"], errors="coerce") / 1_000
         trade = trade.dropna(subset=["value"])
+
+    money = _g(vals, "money").copy()
+    if not money.empty:
+        # M2SL is published in USD billions; display the level in trillions.
+        money["value"] = pd.to_numeric(money["value"], errors="coerce") / 1_000
+        money = money.dropna(subset=["value"])
+
+    spread = _g(vals, "spread").copy()
+    if not spread.empty:
+        # T10Y2Y is percentage points; financial-market convention is basis points.
+        spread["value"] = pd.to_numeric(spread["value"], errors="coerce") * 100
+        spread = spread.dropna(subset=["value"])
 
     interest = _g(vals, "interest")
     revenue = _g(vals, "revenue")
@@ -548,8 +719,8 @@ def load_us_economy():
         "bondYield10y": as_rate(_g(vals, "yield")),
         "stockIndex": filter_since(_g(vals, "stock"), since),
         "cpiYoY": yoy_change(_g(vals, "cpi"), 12),
-        "moneySupply": _g(vals, "money"),
-        "spread10y2y": as_rate(_g(vals, "spread")),
+        "moneySupply": money,
+        "spread10y2y": spread,
         "unemployment": as_rate(_g(vals, "unemployment")),
         "tradeBalance": trade,
         "gdpYoY": yoy_change(_g(vals, "gdp"), 4),
@@ -575,10 +746,13 @@ def load_norway_economy():
     yields = vals.get("yields") or {}
     y10 = as_rate(yields.get("10Y", _empty()))
     y3 = as_rate(yields.get("3Y", _empty()))
+    spread = series_diff(y10, y3)
+    if not spread.empty:
+        spread["value"] = pd.to_numeric(spread["value"], errors="coerce") * 10_000
     return {
         "bondYield10y": y10,
         "policyRate": as_rate(_g(vals, "policy")),
-        "spread10y3y": series_diff(y10, y3),
+        "spread10y3y": spread,
         "stockIndex": _g(vals, "stock"),
         "cpiYoY": yoy_change(_g(vals, "cpi"), 12),
         "unemployment": _g(vals, "unemployment"),
@@ -593,9 +767,10 @@ def load_eu_economy():
     headline = parallel_fetch(
         {
             "yield": lambda: fetch_ecb_eu_yield10y(since),
-            "policy": lambda: fetch_fred("ECBDFR", since),
-            "cpi": lambda: fetch_fred("CP0000EZ19M086NEST", since),
-            "gdp": lambda: fetch_fred("CLVMNACSCAB1GQEA19", since),
+            "policy": lambda: fetch_ecb_deposit_rate(since),
+            "cpi": lambda: fetch_eurostat_eu_cpi_yoy(since),
+            "gdp": lambda: fetch_eurostat_eu_gdp_yoy(since),
+            "unemployment": lambda: fetch_eurostat_eu_unemployment(since),
             "stock": lambda: fetch_yahoo("^STOXX50E", "10y"),
         }
     )
@@ -626,9 +801,10 @@ def load_eu_economy():
         }
     return {
         "bondYield10y": as_rate(_g(headline, "yield")),
-        "policyRate": as_rate(_g(headline, "policy")),
-        "cpiYoY": yoy_change(_g(headline, "cpi"), 12),
-        "gdpYoY": yoy_change(_g(headline, "gdp"), 4),
+        "policyRate": _g(headline, "policy"),
+        "cpiYoY": _g(headline, "cpi"),
+        "gdpYoY": _g(headline, "gdp"),
+        "unemployment": _g(headline, "unemployment"),
         "stockIndex": _g(headline, "stock"),
         "countries": countries,
     }
@@ -638,7 +814,7 @@ def load_uk_economy():
     since = ten_years_ago()
     vals = parallel_fetch(
         {
-            "yield": lambda: fetch_fred("IRLTLT01GBM156N", since),
+            "yield": lambda: fetch_boe_uk_yield10y(since),
             "stock": lambda: fetch_yahoo("^FTSE", "10y"),
             # ONS direct -- the FRED mirrors of these three (GBRCPIALLMINMEI,
             # LRHUTTTTGBM156S, NGDPRSAXDCGBQ) lag ONS's own releases, badly
@@ -650,7 +826,7 @@ def load_uk_economy():
         }
     )
     return {
-        "bondYield10y": as_rate(_g(vals, "yield")),
+        "bondYield10y": _g(vals, "yield"),
         "stockIndex": _g(vals, "stock"),
         "cpiYoY": as_rate(_g(vals, "cpi")),
         "unemployment": as_rate(_g(vals, "unemployment")),
@@ -671,8 +847,8 @@ def load_comparison_data():
     )
     eu = parallel_fetch(
         {
-            "gdp": lambda: fetch_fred("CLVMNACSCAB1GQEA19", since),
-            "cpi": lambda: fetch_fred("CP0000EZ19M086NEST", since),
+            "gdp": lambda: fetch_eurostat_eu_gdp_yoy(since),
+            "cpi": lambda: fetch_eurostat_eu_cpi_yoy(since),
             # ECB/Eurostat direct -- the FRED mirrors of these two
             # (IRLTLT01EZM156N, LRHUTTTTEZM156S) lag several months to
             # several years behind the source.
@@ -682,7 +858,7 @@ def load_comparison_data():
     )
     uk = parallel_fetch(
         {
-            "yield": lambda: fetch_fred("IRLTLT01GBM156N", since),
+            "yield": lambda: fetch_boe_uk_yield10y(since),
             # ONS direct -- see load_uk_economy() for why.
             "gdp": fetch_ons_uk_gdp_yoy,
             "cpi": fetch_ons_uk_cpi_yoy,
@@ -700,25 +876,25 @@ def load_comparison_data():
     return {
         "gdpYoY": {
             "us": yoy_change(_g(us, "gdp"), 4),
-            "eu": yoy_change(_g(eu, "gdp"), 4),
+            "eu": _g(eu, "gdp"),
             "uk": as_rate(_g(uk, "gdp")),
             "norway": filter_since(_g(norway, "gdp"), since),
         },
         "cpiYoY": {
             "us": yoy_change(_g(us, "cpi"), 12),
-            "eu": yoy_change(_g(eu, "cpi"), 12),
+            "eu": _g(eu, "cpi"),
             "uk": as_rate(_g(uk, "cpi")),
             "norway": yoy_change(_g(norway, "cpi"), 12),
         },
         "bondYield10y": {
             "us": as_rate(_g(us, "yield")),
             "eu": as_rate(_g(eu, "yield")),
-            "uk": as_rate(_g(uk, "yield")),
+            "uk": _g(uk, "yield"),
             "norway": as_rate(_g(norway, "yield")),
         },
         "unemployment": {
             "us": as_rate(_g(us, "unemployment")),
-            "eu": as_rate(_g(eu, "unemployment")),
+            "eu": _g(eu, "unemployment"),
             "uk": as_rate(_g(uk, "unemployment")),
             "norway": _g(norway, "unemployment"),
         },
@@ -735,15 +911,21 @@ _MARKET_LOADERS = {
 }
 
 
-def get_market_data(market):
+def get_market_data(market, force=False):
     loader = _MARKET_LOADERS.get(market)
     if not loader:
         return {}
-    return _cache.get_or_load(market, loader)
+    return _cache.get_or_load(market, loader, force=force)
 
 
-def get_comparison_data():
-    return _cache.get_or_load("comparison", load_comparison_data)
+def get_comparison_data(force=False):
+    return _cache.get_or_load("comparison", load_comparison_data, force=force)
+
+
+def refresh_market(market):
+    if market == "comparison":
+        return get_comparison_data(force=True)
+    return get_market_data(market, force=True)
 
 
 def invalidate_market(market):

@@ -758,6 +758,14 @@ a.home-dark-card:hover::after {
   color: var(--header-color);
 }
 
+.economy-radio .dash-options-list-option {
+  color: var(--text-white) !important;
+}
+
+.economy-radio .dash-options-list-option.selected {
+  color: var(--accent-color) !important;
+}
+
 .economy-divider {
   width: min(100%, 1200px);
   margin: 8px auto 4px;
@@ -924,6 +932,8 @@ a.home-dark-card:hover::after {
   opacity: 0.7;
   text-transform: uppercase;
   letter-spacing: 0.03em;
+  line-height: 1.35;
+  text-align: center;
 }
 
 .comparison-controls {

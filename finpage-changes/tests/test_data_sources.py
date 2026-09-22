@@ -15,6 +15,92 @@ def frame(dates, values):
 
 
 class EconomyDataSourceTests(unittest.TestCase):
+    def test_eurostat_cpi_uses_changing_composition_annual_rate(self):
+        response = Mock()
+        response.raise_for_status.return_value = None
+        response.json.return_value = {
+            "dimension": {
+                "time": {"category": {"index": {"2026-07": 0, "2026-08": 1}}}
+            },
+            "value": {"0": 3.0, "1": 3.2},
+        }
+
+        with patch.object(ds.requests, "get", return_value=response) as get:
+            result = ds.fetch_eurostat_eu_cpi_yoy("2026-01-01")
+
+        self.assertIn("prc_hicp_minr", get.call_args.args[0])
+        self.assertEqual(get.call_args.kwargs["params"]["geo"], "EA")
+        self.assertEqual(get.call_args.kwargs["params"]["unit"], "RCH_A")
+        self.assertEqual(result["Date"].iloc[-1], pd.Timestamp("2026-08-01"))
+        self.assertAlmostEqual(result["value"].iloc[-1], 0.032)
+
+    def test_eurostat_gdp_parses_quarters_and_published_yoy_rate(self):
+        response = Mock()
+        response.raise_for_status.return_value = None
+        response.json.return_value = {
+            "dimension": {
+                "time": {"category": {"index": {"2026-Q1": 0, "2026-Q2": 1}}}
+            },
+            "value": {"0": 0.6, "1": 1.2},
+        }
+
+        with patch.object(ds.requests, "get", return_value=response) as get:
+            result = ds.fetch_eurostat_eu_gdp_yoy("2026-01-01")
+
+        self.assertIn("namq_10_gdp", get.call_args.args[0])
+        self.assertEqual(get.call_args.kwargs["params"]["geo"], "EA")
+        self.assertEqual(get.call_args.kwargs["params"]["unit"], "CLV_PCH_SM")
+        self.assertEqual(
+            result["Date"].tolist(),
+            [pd.Timestamp("2026-01-01"), pd.Timestamp("2026-04-01")],
+        )
+        self.assertAlmostEqual(result["value"].iloc[-1], 0.012)
+
+    def test_uk_gdp_uses_current_pn2_release_dataset(self):
+        expected = frame(["2026-04-01"], [1.2])
+        with patch.object(ds, "_ons_series", return_value=expected) as loader:
+            result = ds.fetch_ons_uk_gdp_yoy()
+
+        loader.assert_called_once_with(
+            "economy/grossdomesticproductgdp", "ihyr", "pn2"
+        )
+        pd.testing.assert_frame_equal(result, expected)
+
+    def test_boe_daily_gilt_yield_is_normalized_to_fraction(self):
+        response = Mock()
+        response.raise_for_status.return_value = None
+        response.text = "DATE,IUDMNPY\n17 Sep 2026,5.1742\n"
+
+        with patch.object(ds.requests, "get", return_value=response) as get:
+            result = ds.fetch_boe_uk_yield10y("2026-01-01")
+
+        self.assertEqual(get.call_args.kwargs["params"]["SeriesCodes"], "IUDMNPY")
+        self.assertEqual(result["Date"].iloc[-1], pd.Timestamp("2026-09-17"))
+        self.assertAlmostEqual(result["value"].iloc[-1], 0.051742)
+
+    def test_ecb_deposit_rate_keeps_changes_and_latest_as_of_date(self):
+        response = Mock()
+        response.raise_for_status.return_value = None
+        response.text = (
+            "TIME_PERIOD,OBS_VALUE\n"
+            "2026-01-01,2.75\n"
+            "2026-06-01,2.50\n"
+            "2026-09-22,2.50\n"
+        )
+
+        with patch.object(ds.requests, "get", return_value=response):
+            result = ds.fetch_ecb_deposit_rate("2026-01-01")
+
+        self.assertEqual(
+            result["Date"].tolist(),
+            [
+                pd.Timestamp("2026-01-01"),
+                pd.Timestamp("2026-06-01"),
+                pd.Timestamp("2026-09-22"),
+            ],
+        )
+        self.assertAlmostEqual(result["value"].iloc[-1], 0.025)
+
     def test_norway_gdp_uses_current_monthly_ssb_yoy_table(self):
         response = Mock()
         response.raise_for_status.return_value = None
@@ -73,7 +159,7 @@ class EconomyDataSourceTests(unittest.TestCase):
         self.assertAlmostEqual(result.loc[pd.Timestamp("2025-04-01")], 0.05)
         self.assertAlmostEqual(result.loc[pd.Timestamp("2025-10-01")], 0.05)
 
-    def test_us_loader_normalizes_rates_and_trade_balance_units(self):
+    def test_us_loader_normalizes_financial_display_units(self):
         values = {
             "yield": frame(["2026-08-14"], [4.68]),
             "stock": frame(["2026-08-14"], [7785.76]),
@@ -92,9 +178,10 @@ class EconomyDataSourceTests(unittest.TestCase):
             result = ds.load_us_economy()
 
         self.assertAlmostEqual(ds.last_value(result["bondYield10y"]), 0.0468)
-        self.assertAlmostEqual(ds.last_value(result["spread10y2y"]), 0.0051)
+        self.assertAlmostEqual(ds.last_value(result["spread10y2y"]), 51.0)
         self.assertAlmostEqual(ds.last_value(result["unemployment"]), 0.041)
-        self.assertAlmostEqual(ds.last_value(result["tradeBalance"]), -0.073261)
+        self.assertAlmostEqual(ds.last_value(result["tradeBalance"]), -73.261)
+        self.assertAlmostEqual(ds.last_value(result["moneySupply"]), 23.1552)
         self.assertAlmostEqual(
             ds.last_value(result["cpiYoY"]),
             332.813 / 322.132 - 1,
@@ -102,6 +189,33 @@ class EconomyDataSourceTests(unittest.TestCase):
         self.assertAlmostEqual(
             ds.last_value(result["interestToRevenue"]),
             1247.033 / 5872.497,
+        )
+
+    def test_comparison_keeps_normalized_eurostat_rates_at_display_scale(self):
+        direct_eu = {
+            "gdp": frame(["2026-04-01"], [0.012]),
+            "cpi": frame(["2026-08-01"], [0.032]),
+            "yield": frame(["2026-09-18"], [3.5]),
+            "unemployment": frame(["2026-07-01"], [0.064]),
+        }
+        empty_market = {
+            "gdp": ds._empty(),
+            "cpi": ds._empty(),
+            "yield": ds._empty(),
+            "unemployment": ds._empty(),
+        }
+
+        with patch.object(
+            ds,
+            "parallel_fetch",
+            side_effect=[empty_market, direct_eu, empty_market, empty_market],
+        ):
+            result = ds.load_comparison_data()
+
+        self.assertAlmostEqual(ds.last_value(result["gdpYoY"]["eu"]), 0.012)
+        self.assertAlmostEqual(ds.last_value(result["cpiYoY"]["eu"]), 0.032)
+        self.assertAlmostEqual(
+            ds.last_value(result["unemployment"]["eu"]), 0.064
         )
 
 
