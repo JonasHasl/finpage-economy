@@ -35,6 +35,17 @@ economy = import_economy_page()
 
 
 class EconomyPageFigureTests(unittest.TestCase):
+    def test_graph_wrappers_have_a_stable_responsive_height(self):
+        figure = economy.create_empty_figure("Test", "No data")
+
+        wrapped_graph = economy.graph_wrap(figure).children.children[0]
+        slotted_graph = economy.graph_slot("test-graph").children.children[0]
+
+        for graph in (wrapped_graph, slotted_graph):
+            self.assertEqual(graph.style, economy.ECONOMY_GRAPH_STYLE)
+            self.assertNotEqual(graph.style["height"], "100%")
+            self.assertEqual(graph.style["minHeight"], "380px")
+
     def test_comparison_filters_every_trace_to_selected_ytd_window(self):
         series = {
             "us": frame(

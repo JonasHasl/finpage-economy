@@ -44,6 +44,16 @@ CHART_COLORS = {
     "cyan": "#22d3ee",
     "rose": "#fb7185",
 }
+
+# Dash renders responsive Graph components with an inline ``height: 100%``.
+# Without a definite container height, a figure update can resolve that
+# percentage to zero and make a populated chart appear empty.  Keep the
+# desktop height users already see while remaining compact on phones.
+ECONOMY_GRAPH_STYLE = {
+    "height": "clamp(380px, 42vw, 450px)",
+    "minHeight": "380px",
+}
+
 GRID_COLOR = "#1e293b"
 AXIS_TEXT_COLOR = "#64748b"
 TOOLTIP_BG = "#0b1424"
@@ -638,8 +648,15 @@ def source_caption(source):
 
 def graph_wrap(fig, full=True, source=None, graph_id=None):
     classes = "economy-graph-wrap economy-graph-wrap-full" if full else "economy-graph-wrap"
-    inner = [dcc.Graph(id=graph_id, figure=fig, className="graph economy-graph", responsive=True)] if graph_id \
-        else [dcc.Graph(figure=fig, className="graph economy-graph", responsive=True)]
+    graph_options = {
+        "figure": fig,
+        "className": "graph economy-graph",
+        "responsive": True,
+        "style": ECONOMY_GRAPH_STYLE.copy(),
+    }
+    if graph_id is not None:
+        graph_options["id"] = graph_id
+    inner = [dcc.Graph(**graph_options)]
     caption = source_caption(source)
     if caption:
         inner.append(caption)
@@ -650,7 +667,14 @@ def graph_slot(graph_id, source=None, wide=False):
     """A graph placeholder for the static US-tab layout -- figure is filled
     in later by update_all_graphs()."""
     classes = "graph economy-graph economy-graph-wide" if wide else "graph economy-graph"
-    inner = [dcc.Graph(id=graph_id, className=classes, responsive=True)]
+    inner = [
+        dcc.Graph(
+            id=graph_id,
+            className=classes,
+            responsive=True,
+            style=ECONOMY_GRAPH_STYLE.copy(),
+        )
+    ]
     caption = source_caption(source)
     if caption:
         inner.append(caption)

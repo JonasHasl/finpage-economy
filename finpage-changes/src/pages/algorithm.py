@@ -18,11 +18,12 @@ from portfolio_history import (
 dash.register_page(__name__, path='/portfolio-daily')
 
 
-# Decorative, always-animating "trend" chart for the hero -- a row of bars on a
-# rising baseline that keeps breathing (styled in custom.css .algo-trend*).
+# Decorative canvas for the hero.  assets/algorithm-hero.js draws a rising
+# line with a subtle continuous pulse; it is deliberately not presented as
+# portfolio data to assistive technology.
 def _algo_trend_chart():
-    return html.Div(
-        [html.Span(className='algo-trend__bar') for _ in range(16)],
+    return html.Canvas(
+        id='algo-trend-canvas',
         className='algo-trend',
         **{'aria-hidden': 'true'},
     )

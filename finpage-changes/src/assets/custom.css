@@ -1306,102 +1306,28 @@ a.home-dark-card:hover::after {
   z-index: 1;
 }
 
-/* Hero -- self-drawing trend line + a slow diagonal sheen sweep. */
+/* Hero -- animated rising line behind the title, without a sheen sweep. */
 .algo-hero-inner {
   position: relative;
   z-index: 2;
 }
 
-/* A row of bars on a rising baseline that keeps "breathing" -- a live,
-   trending-up chart motif. Pure CSS so it always animates. */
+/* The canvas is sized explicitly here; algorithm-hero.js handles high-DPI
+   drawing, resizing, animation and the reduced-motion preference. */
 .algo-trend {
   position: absolute;
-  left: 0;
-  right: 0;
+  left: 4%;
+  right: 4%;
   bottom: 0;
+  width: 92%;
   height: 44%;
-  display: flex;
-  align-items: flex-end;
-  gap: 2.1%;
-  padding: 0 5%;
+  display: block;
   opacity: 0.42;
   pointer-events: none;
   z-index: 1;
+  box-sizing: border-box;
   -webkit-mask-image: linear-gradient(to top, #000 18%, rgba(0, 0, 0, 0.35) 55%, transparent);
   mask-image: linear-gradient(to top, #000 18%, rgba(0, 0, 0, 0.35) 55%, transparent);
-}
-
-.algo-trend__bar {
-  flex: 1 1 0;
-  min-width: 0;
-  border-radius: 4px 4px 0 0;
-  background: linear-gradient(to top, hsl(199 92% 60% / 0.1), hsl(184 84% 62% / 0.72));
-  box-shadow: 0 0 12px hsl(190 90% 60% / 0.22);
-  transform-origin: bottom;
-  animation: algo-trend-rise 3.4s ease-in-out infinite alternate;
-}
-
-/* Rising baseline (with realistic wobble) + travelling-wave delay. */
-.algo-trend__bar:nth-child(1)  { height: 11%; animation-delay: -0.10s; }
-.algo-trend__bar:nth-child(2)  { height: 16%; animation-delay: -0.30s; }
-.algo-trend__bar:nth-child(3)  { height: 13%; animation-delay: -0.50s; }
-.algo-trend__bar:nth-child(4)  { height: 22%; animation-delay: -0.70s; }
-.algo-trend__bar:nth-child(5)  { height: 28%; animation-delay: -0.90s; }
-.algo-trend__bar:nth-child(6)  { height: 24%; animation-delay: -1.10s; }
-.algo-trend__bar:nth-child(7)  { height: 35%; animation-delay: -1.30s; }
-.algo-trend__bar:nth-child(8)  { height: 41%; animation-delay: -1.50s; }
-.algo-trend__bar:nth-child(9)  { height: 37%; animation-delay: -1.70s; }
-.algo-trend__bar:nth-child(10) { height: 49%; animation-delay: -1.90s; }
-.algo-trend__bar:nth-child(11) { height: 57%; animation-delay: -2.10s; }
-.algo-trend__bar:nth-child(12) { height: 52%; animation-delay: -2.30s; }
-.algo-trend__bar:nth-child(13) { height: 66%; animation-delay: -2.50s; }
-.algo-trend__bar:nth-child(14) { height: 75%; animation-delay: -2.70s; }
-.algo-trend__bar:nth-child(15) { height: 83%; animation-delay: -2.90s; }
-.algo-trend__bar:nth-child(16) { height: 96%; animation-delay: -3.10s; }
-
-.algo-trend__bar:last-child::after {
-  content: "";
-  position: absolute;
-  left: 50%;
-  top: 0;
-  width: 7px;
-  height: 7px;
-  margin-left: -3.5px;
-  border-radius: 50%;
-  background: hsl(166 84% 66%);
-  box-shadow: 0 0 10px 2px hsl(166 84% 66% / 0.7);
-  animation: algo-trend-tip 3.4s ease-in-out infinite;
-}
-
-.algo-trend__bar:last-child {
-  position: relative;
-}
-
-@keyframes algo-trend-rise {
-  from { transform: scaleY(0.8); }
-  to   { transform: scaleY(1.05); }
-}
-
-@keyframes algo-trend-tip {
-  0%, 100% { opacity: 0.35; transform: scale(0.85); }
-  50%      { opacity: 1; transform: scale(1.25); }
-}
-
-.algo-hero::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  z-index: 1;
-  pointer-events: none;
-  background: linear-gradient(115deg, transparent 40%, hsl(199 95% 72% / 0.08) 50%, transparent 60%);
-  transform: translateX(-120%);
-  animation: algo-sheen 7.5s ease-in-out infinite;
-}
-
-@keyframes algo-sheen {
-  0%   { transform: translateX(-120%); }
-  60%  { transform: translateX(120%); }
-  100% { transform: translateX(120%); }
 }
 
 .algo-hero-badge {
@@ -1478,8 +1404,10 @@ a.home-dark-card:hover::after {
   }
 
   .algo-shell .algo-trend {
+    left: 3%;
+    right: 3%;
+    width: 94%;
     height: 37%;
-    padding: 0 3%;
     opacity: 0.32;
   }
 
@@ -1632,10 +1560,7 @@ a.home-dark-card:hover::after {
 @media (prefers-reduced-motion: reduce) {
   .algo-shell::before,
   .algo-shell::after,
-  .algo-hero::after,
-  .algo-hero-badge,
-  .algo-trend__bar,
-  .algo-trend__bar:last-child::after {
+  .algo-hero-badge {
     animation: none;
   }
 }
