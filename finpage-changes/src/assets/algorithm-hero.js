@@ -3,6 +3,16 @@
 
   const selector = "#algo-trend-canvas";
   const mounted = new WeakSet();
+  const palette = {
+    grid: "rgba(82, 107, 128, 0.16)",
+    areaTop: "rgba(4, 120, 87, 0.18)",
+    areaBottom: "rgba(3, 105, 161, 0.02)",
+    lineStart: "rgba(3, 105, 161, 0.88)",
+    lineEnd: "rgba(4, 120, 87, 0.98)",
+    glow: "rgba(4, 120, 87, 0.34)",
+    point: "rgba(4, 120, 87, 0.98)",
+    pointGlow: "rgba(4, 120, 87, 0.48)",
+  };
   const levels = [
     0.10, 0.16, 0.13, 0.24, 0.30, 0.27, 0.39, 0.45,
     0.41, 0.54, 0.60, 0.57, 0.70, 0.77, 0.83, 0.94,
@@ -76,7 +86,7 @@
       context.clearRect(0, 0, width, height);
 
       context.save();
-      context.strokeStyle = "rgba(125, 211, 252, 0.10)";
+      context.strokeStyle = palette.grid;
       context.lineWidth = 1;
       for (const fraction of [0.25, 0.5, 0.75]) {
         const y = Math.round(height * fraction) + 0.5;
@@ -114,8 +124,8 @@
       context.lineTo(first.x, height);
       context.closePath();
       const area = context.createLinearGradient(0, 0, 0, height);
-      area.addColorStop(0, "rgba(45, 212, 191, 0.24)");
-      area.addColorStop(1, "rgba(56, 189, 248, 0.01)");
+      area.addColorStop(0, palette.areaTop);
+      area.addColorStop(1, palette.areaBottom);
       context.fillStyle = area;
       context.fill();
       context.restore();
@@ -124,13 +134,13 @@
       context.beginPath();
       curvePath(context, visiblePoints);
       const stroke = context.createLinearGradient(0, 0, width, 0);
-      stroke.addColorStop(0, "rgba(56, 189, 248, 0.72)");
-      stroke.addColorStop(1, "rgba(94, 234, 212, 0.98)");
+      stroke.addColorStop(0, palette.lineStart);
+      stroke.addColorStop(1, palette.lineEnd);
       context.strokeStyle = stroke;
       context.lineWidth = 2.4;
       context.lineCap = "round";
       context.lineJoin = "round";
-      context.shadowColor = "rgba(45, 212, 191, 0.48)";
+      context.shadowColor = palette.glow;
       context.shadowBlur = 9;
       context.stroke();
       context.restore();
@@ -139,8 +149,8 @@
       context.save();
       context.beginPath();
       context.arc(last.x, last.y, 4.2 * pulse, 0, Math.PI * 2);
-      context.fillStyle = "rgba(94, 234, 212, 0.96)";
-      context.shadowColor = "rgba(94, 234, 212, 0.85)";
+      context.fillStyle = palette.point;
+      context.shadowColor = palette.pointGlow;
       context.shadowBlur = 12;
       context.fill();
       context.restore();

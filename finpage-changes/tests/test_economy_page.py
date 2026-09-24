@@ -35,6 +35,68 @@ economy = import_economy_page()
 
 
 class EconomyPageFigureTests(unittest.TestCase):
+    def test_nordic_daylight_palette_is_shared_and_financial_colors_are_stable(self):
+        self.assertIs(economy.ECONOMY_THEME, economy.LIGHT_THEME)
+        self.assertEqual(
+            economy.CHART_COLORS,
+            {
+                key: economy.LIGHT_THEME[key]
+                for key in ("blue", "green", "amber", "red", "violet", "cyan", "rose")
+            },
+        )
+        self.assertEqual(economy.GRID_COLOR, "#DCE6EF")
+        self.assertEqual(economy.AXIS_TEXT_COLOR, "#526B80")
+        self.assertEqual(economy.CARD_COLOR, "#FFFFFF")
+
+    def test_nordic_daylight_figure_uses_light_surface_safe_plotly_colors(self):
+        figure = economy.create_graph(
+            economy.CHART_COLORS["green"],
+            "Year-over-year change",
+            "Real GDP Growth",
+            frame(["2026-01-01", "2026-04-01"], [0.01, 0.012]),
+            "value",
+            "%",
+            date(2026, 1, 1),
+            date(2026, 12, 31),
+            period="quarter",
+        )
+
+        self.assertEqual(figure.layout.paper_bgcolor, "rgba(0,0,0,0)")
+        self.assertEqual(figure.layout.plot_bgcolor, "rgba(0,0,0,0)")
+        self.assertEqual(figure.layout.font.color, "#102A43")
+        self.assertEqual(figure.layout.xaxis.tickfont.color, "#526B80")
+        self.assertEqual(figure.layout.yaxis.tickfont.color, "#526B80")
+        self.assertEqual(figure.layout.yaxis.gridcolor, "#DCE6EF")
+        self.assertEqual(figure.layout.hoverlabel.bgcolor, "#102A43")
+        self.assertEqual(figure.layout.hoverlabel.font.color, "#F8FAFC")
+        self.assertEqual(figure.data[0].line.color, "#047857")
+        self.assertEqual(figure.data[-1].marker.line.color, "#FFFFFF")
+
+    def test_nordic_daylight_card_colors_are_scoped_to_economy_layout(self):
+        css = (SRC / "assets" / "custom.css").read_text()
+        economy_css = css.split("/* Economy page */", 1)[1].split(
+            "@media (max-width: 768px)", 1
+        )[0]
+
+        for token in (
+            "--economy-page: #F4F8FC",
+            "--economy-surface: #FFFFFF",
+            "--economy-subtle: #EAF1F7",
+            "--economy-text: #102A43",
+            "--economy-text-secondary: #486581",
+            "--economy-text-muted: #526B80",
+            "--economy-border: #C9D8E5",
+            "--economy-grid: #DCE6EF",
+            "--economy-blue: #0369A1",
+            "--economy-green: #047857",
+        ):
+            self.assertIn(token, economy_css)
+
+        self.assertIn("background: var(--economy-page);", economy_css)
+        self.assertIn(
+            "background: var(--economy-surface, var(--card-color));", economy_css
+        )
+
     def test_graph_wrappers_have_a_stable_responsive_height(self):
         figure = economy.create_empty_figure("Test", "No data")
 

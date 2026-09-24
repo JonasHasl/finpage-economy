@@ -6,47 +6,48 @@ import pandas as pd
 from dash import Input, Output, State, callback, dcc, html, dash_table
 from dash.exceptions import PreventUpdate
 from email_notify import EmailNotificationError, send_change_notification_email
+from theme import LIGHT_THEME
 from workbook_store import get_workbook_path, replace_workbook_sheet, workbook_store
 
 
 dash.register_page(__name__, path='/algo-helper')
 
 SECTION_CARD_STYLE = {
-    'background': 'linear-gradient(180deg, rgba(255,255,255,0.98), rgba(246,249,252,0.94))',
+    'background': 'linear-gradient(180deg, rgba(255,255,255,0.98), rgba(234,241,247,0.94))',
     'borderRadius': '26px',
     'padding': '1.35rem',
-    'border': '1px solid rgba(190,214,235,0.85)',
-    'boxShadow': '0 18px 45px rgba(10,33,59,0.09)'
+    'border': '1px solid rgba(201,216,229,0.90)',
+    'boxShadow': '0 18px 45px rgba(16,42,67,0.09)'
 }
 
 INPUT_STYLE = {
     'width': '100%',
     'borderRadius': '14px',
-    'border': '1px solid #d7e3ef',
+    'border': f"1px solid {LIGHT_THEME['border']}",
     'padding': '0.9rem 1rem',
     'fontSize': '1rem',
     'backgroundColor': 'white',
-    'color': '#27425c'
+    'color': LIGHT_THEME['text_primary']
 }
 
 BUTTON_STYLE = {
-    'background': 'linear-gradient(135deg, #0a213b, #1e3a5a)',
+    'background': f"linear-gradient(135deg, {LIGHT_THEME['blue']}, {LIGHT_THEME['cyan']})",
     'color': 'white',
     'border': 'none',
     'borderRadius': '999px',
     'padding': '0.85rem 1.4rem',
     'fontWeight': '600',
-    'boxShadow': '0 12px 30px rgba(10,33,59,0.18)'
+    'boxShadow': '0 12px 30px rgba(3,105,161,0.18)'
 }
 
 SECONDARY_BUTTON_STYLE = {
     'background': 'white',
-    'color': '#0a213b',
-    'border': '1px solid #bed6eb',
+    'color': LIGHT_THEME['blue'],
+    'border': f"1px solid {LIGHT_THEME['border']}",
     'borderRadius': '999px',
     'padding': '0.85rem 1.4rem',
     'fontWeight': '600',
-    'boxShadow': '0 12px 30px rgba(10,33,59,0.08)'
+    'boxShadow': '0 12px 30px rgba(16,42,67,0.08)'
 }
 
 MODEL_TO_SHEET = {'2015': '2015', '2020': '2020'}
@@ -117,9 +118,9 @@ def base_table_style():
             'fontFamily': 'Arial, sans-serif',
             'fontSize': '14px',
             'lineHeight': '1.45',
-            'color': '#27425c',
+            'color': '#102A43',
             'backgroundColor': 'rgba(255,255,255,0.96)',
-            'border': '1px solid rgba(225,229,233,0.75)',
+            'border': '1px solid rgba(201,216,229,0.78)',
             'minWidth': '120px',
             'width': '120px',
             'maxWidth': '260px',
@@ -127,26 +128,26 @@ def base_table_style():
         },
         'style_data': {
             'backgroundColor': 'rgba(255,255,255,0.96)',
-            'border': '1px solid rgba(225,229,233,0.75)'
+            'border': '1px solid rgba(201,216,229,0.78)'
         },
         'style_data_conditional': [
-            {'if': {'row_index': 'odd'}, 'backgroundColor': '#f8f9fa'}
+            {'if': {'row_index': 'odd'}, 'backgroundColor': '#F4F8FC'}
         ],
         'style_header': {
-            'backgroundColor': '#0f2744',
+            'backgroundColor': '#0369A1',
             'color': 'white',
             'fontWeight': 'bold',
             'fontFamily': 'Arial, sans-serif',
             'fontSize': '15px',
             'padding': '16px 18px',
-            'border': '1px solid #004172',
+            'border': '1px solid #0369A1',
             'textAlign': 'center'
         },
         'style_table': {
             'overflowX': 'auto',
             'borderRadius': '14px',
             'boxShadow': '0 6px 18px rgba(0,0,0,0.06)',
-            'border': '1px solid #e1e5e9',
+            'border': '1px solid #C9D8E5',
             'margin': '0.75rem 0 0 0',
             'maxHeight': '720px',
             'overflowY': 'auto'
@@ -314,9 +315,9 @@ layout = dbc.Container([
             'display': 'inline-block',
             'padding': '0.45rem 1rem',
             'borderRadius': '999px',
-            'background': 'linear-gradient(135deg, rgba(0,65,114,0.10), rgba(30,58,90,0.16))',
-            'border': '1px solid rgba(0,65,114,0.12)',
-            'color': '#004172',
+            'background': 'linear-gradient(135deg, rgba(3,105,161,0.10), rgba(14,116,144,0.14))',
+            'border': '1px solid rgba(3,105,161,0.18)',
+            'color': '#0369A1',
             'fontSize': '0.92rem',
             'letterSpacing': '0.04em',
             'textTransform': 'uppercase',
@@ -326,7 +327,7 @@ layout = dbc.Container([
         html.H1('Update AlgoComposition.xlsx', className='headerfinvest', style={
             'textAlign': 'center',
             'marginBottom': '0.75rem',
-            'color': '#0f2744',
+            'color': '#102A43',
             'fontWeight': '500',
             'letterSpacing': '-0.03em',
             'lineHeight': '1.05'
@@ -340,7 +341,7 @@ layout = dbc.Container([
                 'maxWidth': '920px',
                 'fontWeight': '400',
                 'lineHeight': '1.75',
-                'color': '#516274'
+                'color': '#486581'
             }
         )
     ], style={
@@ -348,9 +349,9 @@ layout = dbc.Container([
         'margin': '0 auto 1.5rem auto',
         'padding': '2.6rem 2rem 2rem 2rem',
         'borderRadius': '28px',
-        'background': 'linear-gradient(180deg, rgba(255,255,255,0.96), rgba(237,243,244,0.92))',
-        'boxShadow': '0 24px 70px rgba(10,33,59,0.12)',
-        'border': '1px solid rgba(190,214,235,0.85)',
+        'background': 'linear-gradient(180deg, rgba(255,255,255,0.98), rgba(234,241,247,0.94))',
+        'boxShadow': '0 24px 70px rgba(16,42,67,0.12)',
+        'border': '1px solid rgba(201,216,229,0.90)',
         'position': 'relative',
         'overflow': 'hidden'
     }),
@@ -358,7 +359,7 @@ layout = dbc.Container([
     html.Div([
         dbc.Row([
             dbc.Col([
-                html.Div('Model window', style={'fontSize': '0.85rem', 'fontWeight': '600', 'color': '#5f7488', 'marginBottom': '0.55rem'}),
+                html.Div('Model window', style={'fontSize': '0.85rem', 'fontWeight': '600', 'color': '#526B80', 'marginBottom': '0.55rem'}),
                 dcc.Dropdown(
                     id='helper-model-selector',
                     options=[
@@ -370,11 +371,11 @@ layout = dbc.Container([
                 )
             ], xs=12, md=4),
             dbc.Col([
-                html.Div('FromDate', style={'fontSize': '0.85rem', 'fontWeight': '600', 'color': '#5f7488', 'marginBottom': '0.55rem'}),
+                html.Div('FromDate', style={'fontSize': '0.85rem', 'fontWeight': '600', 'color': '#526B80', 'marginBottom': '0.55rem'}),
                 dcc.DatePickerSingle(id='helper-from-date', display_format='YYYY-MM-DD')
             ], xs=12, md=3),
             dbc.Col([
-                html.Div('Tickers', style={'fontSize': '0.85rem', 'fontWeight': '600', 'color': '#5f7488', 'marginBottom': '0.55rem'}),
+                html.Div('Tickers', style={'fontSize': '0.85rem', 'fontWeight': '600', 'color': '#526B80', 'marginBottom': '0.55rem'}),
                 dcc.Textarea(
                     id='helper-ticker-input',
                     value="['AVGO', 'DELL', 'INTU', 'MU', 'NVDA', 'PLTR', 'SNDK']",
@@ -395,9 +396,9 @@ layout = dbc.Container([
         'margin': '0 auto 1.75rem auto',
         'padding': '1.4rem 1.5rem',
         'backgroundColor': 'rgba(255,255,255,0.88)',
-        'border': '1px solid rgba(190,214,235,0.85)',
+        'border': '1px solid rgba(201,216,229,0.90)',
         'borderRadius': '24px',
-        'boxShadow': '0 14px 38px rgba(10,33,59,0.08)'
+        'boxShadow': '0 14px 38px rgba(16,42,67,0.08)'
     }),
 
     dbc.Row([
@@ -407,7 +408,7 @@ layout = dbc.Container([
                 'fontWeight': '700',
                 'letterSpacing': '0.03em',
                 'textTransform': 'uppercase',
-                'color': '#5f7488',
+                'color': '#526B80',
                 'marginBottom': '0.8rem'
             }),
             dash_table.DataTable(
@@ -431,12 +432,12 @@ layout = dbc.Container([
                 'fontWeight': '700',
                 'letterSpacing': '0.03em',
                 'textTransform': 'uppercase',
-                'color': '#5f7488',
+                'color': '#526B80',
                 'marginBottom': '0.8rem'
             }),
             html.P(
                 'Edit cells, add rows, or remove rows here. Nothing is saved until you click Save edits to Excel.',
-                style={'margin': '0 0 0.8rem', 'color': '#516274'}
+                style={'margin': '0 0 0.8rem', 'color': '#486581'}
             ),
             html.Div([
                 html.Button('Add row', id='helper-current-add-row', n_clicks=0, style=SECONDARY_BUTTON_STYLE),

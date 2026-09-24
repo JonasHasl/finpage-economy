@@ -13,6 +13,7 @@ from portfolio_history import (
     calculate_strategy_max_drawdown,
     get_training_dates,
 )
+from theme import LIGHT_THEME
 
 
 dash.register_page(__name__, path='/portfolio-daily')
@@ -30,15 +31,25 @@ def _algo_trend_chart():
 
 
 colors = {
-    'background': '#111726',
-    'text': '#a9b8cc',
-    'accent': '#53c9f8',
-    'text-white': '#eff3fa',
-    'content': '#18233a',
-    'banner': 'hsl(222, 36%, 12%)',
-    'banner2': 'hsl(222, 30%, 17%)',
-    'border': '#33455f',
-    'header': '#a9b8cc'
+    'background': LIGHT_THEME['page'],
+    'surface': LIGHT_THEME['surface'],
+    'content': LIGHT_THEME['surface_subtle'],
+    'text-primary': LIGHT_THEME['text_primary'],
+    'text': LIGHT_THEME['text_secondary'],
+    'header': LIGHT_THEME['text_muted'],
+    'border': LIGHT_THEME['border'],
+    'grid': LIGHT_THEME['grid'],
+    'accent': LIGHT_THEME['blue'],
+    'positive': LIGHT_THEME['green'],
+    'negative': LIGHT_THEME['red'],
+    'warning': LIGHT_THEME['amber'],
+    'violet': LIGHT_THEME['violet'],
+    'cyan': LIGHT_THEME['cyan'],
+    'rose': LIGHT_THEME['rose'],
+    # Kept for existing call sites that expect the legacy key name.
+    'text-white': LIGHT_THEME['text_primary'],
+    'banner': LIGHT_THEME['surface'],
+    'banner2': LIGHT_THEME['surface_subtle'],
 }
 
 
@@ -47,19 +58,25 @@ description_2020 = '''The algorithm was fitted over 2020-2024 to optimize the Sh
 
 
 CARD_STYLE = {
-    'background': 'linear-gradient(180deg, rgba(30,43,68,0.96), rgba(22,32,52,0.94))',
-    'border': '1px solid rgba(52,70,100,0.9)',
+    'background': (
+        f"linear-gradient(180deg, {colors['surface']} 0%, "
+        'rgba(234,241,247,0.72) 100%)'
+    ),
+    'border': f"1px solid {colors['border']}",
     'borderRadius': '24px',
-    'boxShadow': 'none',
+    'boxShadow': '0 12px 32px rgba(16,42,67,0.08)',
     'height': '100%'
 }
 
 SECTION_CARD_STYLE = {
-    'background': 'linear-gradient(180deg, rgba(30,43,68,0.96), rgba(22,32,52,0.94))',
+    'background': (
+        f"linear-gradient(180deg, {colors['surface']} 0%, "
+        'rgba(234,241,247,0.58) 100%)'
+    ),
     'borderRadius': '26px',
     'padding': '1.35rem',
-    'border': '1px solid rgba(52,70,100,0.9)',
-    'boxShadow': 'none'
+    'border': f"1px solid {colors['border']}",
+    'boxShadow': '0 12px 32px rgba(16,42,67,0.08)'
 }
 
 CARD_BODY_STYLE = {
@@ -92,8 +109,17 @@ def create_portfolio_graph(
 
     if filtered_df.empty:
         fig = go.Figure()
-        fig.add_annotation(text="No data", showarrow=False, font=dict(size=16, color="#a9b8cc"))
-        fig.update_layout(height=height)
+        fig.add_annotation(
+            text="No data",
+            showarrow=False,
+            font=dict(size=16, color=colors['header']),
+        )
+        fig.update_layout(
+            height=height,
+            font=dict(family="Helvetica", size=15, color=colors['text']),
+            plot_bgcolor=LIGHT_THEME['transparent'],
+            paper_bgcolor=LIGHT_THEME['transparent'],
+        )
         return fig
 
     fig = go.Figure()
@@ -111,10 +137,10 @@ def create_portfolio_graph(
 
             style = phase_styles[phase]
             portfolio_marker_sizes = [style['marker_size']] * len(phase_df)
-            portfolio_marker_colors = ['#53c9f8'] * len(phase_df)
+            portfolio_marker_colors = [colors['accent']] * len(phase_df)
             if phase == 'Testing':
                 portfolio_marker_sizes[-1] = 8
-                portfolio_marker_colors[-1] = '#f87171'
+                portfolio_marker_colors[-1] = colors['negative']
 
             fig.add_trace(go.Scatter(
                 x=phase_df['Date'],
@@ -122,7 +148,7 @@ def create_portfolio_graph(
                 mode='lines+markers',
                 name=f'Portfolio · {phase}',
                 legendgroup='Portfolio',
-                line=dict(color='#53c9f8', width=4, dash=style['dash']),
+                line=dict(color=colors['accent'], width=4, dash=style['dash']),
                 opacity=style['opacity'],
                 marker=dict(color=portfolio_marker_colors, size=portfolio_marker_sizes),
                 hoverinfo='skip',
@@ -133,9 +159,9 @@ def create_portfolio_graph(
                 mode='lines+markers',
                 name=f'ACWI · {phase}',
                 legendgroup='ACWI',
-                line=dict(color='#a9b8cc', width=2.5, dash=style['dash']),
+                line=dict(color=colors['header'], width=2.5, dash=style['dash']),
                 opacity=style['opacity'],
-                marker=dict(color='#a9b8cc', size=[style['marker_size']] * len(phase_df)),
+                marker=dict(color=colors['header'], size=[style['marker_size']] * len(phase_df)),
                 hoverinfo='skip',
             ))
 
@@ -144,8 +170,8 @@ def create_portfolio_graph(
         if not training_boundary.empty and not testing_start.empty:
             connector_df = pd.concat([training_boundary, testing_start])
             for column, color, width in [
-                ('Portfolio_Cumulative_Period', '#53c9f8', 4),
-                ('ACWI_Cumulative_Period', '#a9b8cc', 2.5),
+                ('Portfolio_Cumulative_Period', colors['accent'], 4),
+                ('ACWI_Cumulative_Period', colors['header'], 2.5),
             ]:
                 fig.add_trace(go.Scatter(
                     x=connector_df['Date'],
@@ -182,9 +208,9 @@ def create_portfolio_graph(
             y=filtered_df['Portfolio_Cumulative_Period'],
             mode='lines+markers',
             name='Portfolio',
-            line=dict(color='#53c9f8', width=4),
+            line=dict(color=colors['accent'], width=4),
             marker=dict(
-                color=['#53c9f8'] * (n_points - 1) + ['#f87171'],
+                color=[colors['accent']] * (n_points - 1) + [colors['negative']],
                 size=marker_sizes,
                 symbol='circle'
             ),
@@ -195,8 +221,8 @@ def create_portfolio_graph(
             y=filtered_df['ACWI_Cumulative_Period'],
             mode='lines+markers',
             name='ACWI (Benchmark)',
-            line=dict(color='#a9b8cc', width=2.5),
-            marker=dict(color='#a9b8cc', size=[3] * n_points, symbol='circle'),
+            line=dict(color=colors['header'], width=2.5),
+            marker=dict(color=colors['header'], size=[3] * n_points, symbol='circle'),
             hovertemplate='<b>ACWI</b><br>Date: %{x|%Y-%m-%d}<br>Return: %{y:.1%}<extra></extra>'
         ))
 
@@ -214,8 +240,8 @@ def create_portfolio_graph(
         yaxis_title=f"Cumulative Return ({currency})" if currency else "Cumulative Return",
         xaxis_title='Date',
         font=dict(family="Helvetica", size=15, color=colors['text']),
-        plot_bgcolor='rgba(0,0,0,0)',
-        paper_bgcolor='rgba(0,0,0,0)',
+        plot_bgcolor=LIGHT_THEME['transparent'],
+        paper_bgcolor=LIGHT_THEME['transparent'],
         yaxis=dict(range=[y_min, y_max]),
         height=height,
         margin={'l': 38, 'r': 10, 't': 105 if has_phases else 58, 'b': 44},
@@ -226,16 +252,32 @@ def create_portfolio_graph(
             y=1.13 if has_phases else 1.02,
             xanchor="center",
             x=0.5,
-            bgcolor='rgba(22,32,52,0.85)',
-            bordercolor='#33455f',
+            bgcolor='rgba(255,255,255,0.94)',
+            bordercolor=colors['border'],
             borderwidth=1,
-            font=dict(size=12),
+            font=dict(size=12, color=colors['text-primary']),
             tracegroupgap=2,
-        )
+        ),
+        hoverlabel=dict(
+            bgcolor=LIGHT_THEME['tooltip_bg'],
+            bordercolor=LIGHT_THEME['tooltip_bg'],
+            font=dict(color=LIGHT_THEME['tooltip_text']),
+        ),
     )
 
-    fig.update_xaxes(showgrid=True, gridcolor=colors['border'])
-    fig.update_yaxes(showgrid=True, gridcolor=colors['border'], tickformat=".1%")
+    fig.update_xaxes(
+        showgrid=True,
+        gridcolor=colors['grid'],
+        linecolor=colors['border'],
+        zerolinecolor=colors['border'],
+    )
+    fig.update_yaxes(
+        showgrid=True,
+        gridcolor=colors['grid'],
+        linecolor=colors['border'],
+        zerolinecolor=colors['border'],
+        tickformat=".1%",
+    )
     fig.update_layout(uirevision='constant')
 
     if training_end is not None and start_date <= pd.to_datetime(training_end) <= end_date:
@@ -248,7 +290,7 @@ def create_portfolio_graph(
             y1=1,
             xref='x',
             yref='paper',
-            line=dict(color='#fbbf24', width=2, dash='dash')
+            line=dict(color=colors['warning'], width=2, dash='dash')
         )
         fig.add_annotation(
             x=boundary,
@@ -259,9 +301,9 @@ def create_portfolio_graph(
             showarrow=False,
             xanchor='left',
             yanchor='top',
-            font=dict(color='#fbbf24', size=13),
-            bgcolor='rgba(22,32,52,0.88)',
-            bordercolor='#fbbf24',
+            font=dict(color=colors['warning'], size=13),
+            bgcolor='rgba(255,255,255,0.94)',
+            bordercolor=colors['warning'],
             borderwidth=1,
             borderpad=5,
         )
@@ -419,11 +461,16 @@ SECTION_LABEL_STYLE = {
     'fontWeight': '700',
     'letterSpacing': '0.03em',
     'textTransform': 'uppercase',
-    'color': '#a9b8cc',
+    'color': colors['header'],
     'marginBottom': '0.8rem'
 }
 
-CONTROL_LABEL_STYLE = {'fontSize': '0.85rem', 'fontWeight': '600', 'color': '#a9b8cc', 'marginBottom': '0.55rem'}
+CONTROL_LABEL_STYLE = {
+    'fontSize': '0.85rem',
+    'fontWeight': '600',
+    'color': colors['header'],
+    'marginBottom': '0.55rem',
+}
 
 RADIO_LABEL_STYLE = {
     'display': 'inline-flex',
@@ -432,10 +479,10 @@ RADIO_LABEL_STYLE = {
     'marginBottom': '0.6rem',
     'padding': '0.7rem 1rem',
     'borderRadius': '999px',
-    'backgroundColor': 'hsl(222, 30%, 17%)',
-    'border': '1px solid #33455f',
+    'backgroundColor': colors['content'],
+    'border': f"1px solid {colors['border']}",
     'fontWeight': '500',
-    'color': '#eff3fa'
+    'color': colors['text-primary'],
 }
 
 
@@ -464,7 +511,7 @@ controls_panel = html.Div([
                 ],
                 value='testing',
                 labelStyle=RADIO_LABEL_STYLE,
-                inputStyle={'marginRight': '0.45rem'}
+                inputStyle={'marginRight': '0.45rem', 'accentColor': colors['accent']}
             )
         ], xs=12, md=5),
         dbc.Col([
@@ -477,7 +524,7 @@ controls_panel = html.Div([
                 ],
                 value='USD',
                 labelStyle=RADIO_LABEL_STYLE,
-                inputStyle={'marginRight': '0.45rem'}
+                inputStyle={'marginRight': '0.45rem', 'accentColor': colors['accent']}
             )
         ], xs=12, md=3)
     ], className='g-3')
@@ -485,10 +532,13 @@ controls_panel = html.Div([
     'maxWidth': '1120px',
     'margin': '0 auto 1.75rem auto',
     'padding': '1.4rem 1.5rem',
-    'backgroundColor': 'rgba(30,43,68,0.9)',
-    'border': '1px solid rgba(52,70,100,0.9)',
+    'background': (
+        f"linear-gradient(180deg, {colors['surface']} 0%, "
+        'rgba(234,241,247,0.72) 100%)'
+    ),
+    'border': f"1px solid {colors['border']}",
     'borderRadius': '24px',
-    'boxShadow': 'none'
+    'boxShadow': '0 12px 32px rgba(16,42,67,0.08)'
 })
 
 
@@ -502,9 +552,9 @@ layout = html.Div(dbc.Container([
                 'display': 'inline-block',
                 'padding': '0.45rem 1rem',
                 'borderRadius': '999px',
-                'background': 'linear-gradient(135deg, rgba(83,201,248,0.20), rgba(70,110,180,0.32))',
-                'border': '1px solid rgba(83,201,248,0.42)',
-                'color': '#7cd6fb',
+                'background': 'linear-gradient(135deg, rgba(3,105,161,0.12), rgba(109,40,217,0.10))',
+                'border': '1px solid rgba(3,105,161,0.28)',
+                'color': colors['accent'],
                 'fontSize': '0.92rem',
                 'letterSpacing': '0.04em',
                 'textTransform': 'uppercase',
@@ -514,7 +564,7 @@ layout = html.Div(dbc.Container([
             html.H1("Optimized Factor Portfolio", className='headerfinvest', style={
                 'textAlign': 'center',
                 'marginBottom': '0.75rem',
-                'color': '#eff3fa',
+                'color': colors['text-primary'],
                 'fontWeight': '500',
                 'letterSpacing': '-0.03em',
                 'lineHeight': '1.05'
@@ -526,7 +576,7 @@ layout = html.Div(dbc.Container([
                 'maxWidth': '860px',
                 'fontWeight': '400',
                 'lineHeight': '1.75',
-                'color': '#a9b8cc'
+                'color': colors['text'],
             })
         ], className='algo-hero-inner')
     ], className='algo-hero', style={
@@ -534,9 +584,13 @@ layout = html.Div(dbc.Container([
         'margin': '0 auto 1.5rem auto',
         'padding': '2.6rem 2rem 2rem 2rem',
         'borderRadius': '28px',
-        'background': 'linear-gradient(180deg, rgba(30,43,68,0.96), rgba(22,32,52,0.92))',
-        'boxShadow': 'none',
-        'border': '1px solid rgba(52,70,100,0.9)',
+        'background': (
+            'radial-gradient(circle at 82% 14%, rgba(3,105,161,0.12), transparent 34%), '
+            'radial-gradient(circle at 12% 92%, rgba(109,40,217,0.08), transparent 38%), '
+            f"linear-gradient(180deg, {colors['surface']} 0%, {colors['content']} 100%)"
+        ),
+        'boxShadow': '0 12px 32px rgba(16,42,67,0.08)',
+        'border': f"1px solid {colors['border']}",
         'position': 'relative',
         'overflow': 'hidden'
     }),
@@ -601,7 +655,15 @@ layout = html.Div(dbc.Container([
     ], className='algo-composition-wrap', style={'maxWidth': '1120px', 'margin': '0 auto 2rem auto'}),
 
     html.Br(),
-], fluid=True), className='algo-shell')
+], fluid=True), className='algo-shell', style={
+    'backgroundColor': colors['background'],
+    'backgroundImage': (
+        'radial-gradient(58rem 42rem at 88% -6%, rgba(3,105,161,0.08), transparent 60%), '
+        'radial-gradient(48rem 40rem at 2% 8%, rgba(109,40,217,0.06), transparent 55%), '
+        'radial-gradient(44rem 40rem at 50% 112%, rgba(4,120,87,0.05), transparent 60%)'
+    ),
+    'color': colors['text'],
+})
 
 
 @callback(
@@ -629,9 +691,14 @@ def update_dashboard(composition_sheet, period, currency):
         empty_fig = go.Figure().add_annotation(
             text="No data available - check AlgoComposition.xlsx",
             showarrow=False,
-            font=dict(size=16, color="#a9b8cc")
+            font=dict(size=16, color=colors['header'])
         )
-        empty_fig.update_layout(height=400, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
+        empty_fig.update_layout(
+            height=400,
+            font=dict(family="Helvetica", size=15, color=colors['text']),
+            paper_bgcolor=LIGHT_THEME['transparent'],
+            plot_bgcolor=LIGHT_THEME['transparent'],
+        )
 
         no_data_card = dbc.Card(
             dbc.CardBody(
@@ -709,7 +776,7 @@ def update_dashboard(composition_sheet, period, currency):
         composition_sheet, combined_performance
     )
 
-    def create_card(title, value, subtitle, note, value_color='#53c9f8'):
+    def create_card(title, value, subtitle, note, value_color=colors['accent']):
         fmt = "—" if pd.isna(value) else f"{value:.1%}"
         return dbc.Card(
             dbc.CardBody([
@@ -718,12 +785,12 @@ def update_dashboard(composition_sheet, period, currency):
                     'textTransform': 'uppercase',
                     'letterSpacing': '0.04em',
                     'fontWeight': '700',
-                    'color': '#a9b8cc',
+                    'color': colors['header'],
                     'marginBottom': '0.8rem'
                 }),
                 html.Div(subtitle, style={
                     'textAlign': 'left',
-                    'color': '#eff3fa',
+                    'color': colors['text-primary'],
                     'fontSize': '1rem',
                     'marginBottom': '0.5rem',
                     'fontWeight': '600'
@@ -737,7 +804,7 @@ def update_dashboard(composition_sheet, period, currency):
                 }),
                 html.Div(note, style={
                     'fontSize': '0.95rem',
-                    'color': '#a9b8cc',
+                    'color': colors['text'],
                     'lineHeight': '1.5'
                 })
             ], style=CARD_BODY_STYLE),
@@ -766,7 +833,7 @@ def update_dashboard(composition_sheet, period, currency):
             if currency == 'NOK'
             else "The single worst peak-to-trough loss across the full strategy history."
         ),
-        value_color='#f87171',
+        value_color=colors['negative'],
     )
 
     current_date = pd.to_datetime(today)
@@ -835,9 +902,9 @@ def update_dashboard(composition_sheet, period, currency):
                 'fontFamily': 'Arial, sans-serif',
                 'fontSize': '14px',
                 'lineHeight': '1.45',
-                'color': '#eff3fa',
-                'backgroundColor': 'hsl(222, 36%, 12%)',
-                'border': '1px solid #33455f'
+                'color': colors['text-primary'],
+                'backgroundColor': colors['surface'],
+                'border': f"1px solid {colors['border']}",
             },
             style_cell_conditional=[
                 {'if': {'column_id': 'Company'}, 'minWidth': '145px', 'width': '24%'},
@@ -847,59 +914,59 @@ def update_dashboard(composition_sheet, period, currency):
                 {'if': {'column_id': 'ValidFrom'}, 'minWidth': '105px', 'width': '22%'},
             ],
             style_data={
-                'backgroundColor': 'hsl(222, 36%, 12%)',
-                'border': '1px solid #33455f'
+                'backgroundColor': colors['surface'],
+                'border': f"1px solid {colors['border']}",
             },
             style_data_conditional=[
                 {
                     'if': {'column_id': 'Symbol'},
                     'fontWeight': 'bold',
-                    'backgroundColor': 'hsl(222, 30%, 17%)',
+                    'backgroundColor': colors['content'],
                     'textAlign': 'left',
                     'fontFamily': 'Arial, sans-serif',
                     'fontSize': '15px'
                 },
                 {
                     'if': {'column_id': 'YTD', 'filter_query': '{YTD_Value} > 0'},
-                    'color': '#4ade80',
+                    'color': colors['positive'],
                     'fontWeight': '700'
                 },
                 {
                     'if': {'column_id': 'YTD', 'filter_query': '{YTD_Value} < 0'},
-                    'color': '#f87171',
+                    'color': colors['negative'],
                     'fontWeight': '700'
                 },
                 {
                     'if': {'column_id': 'SinceInclusion', 'filter_query': '{SinceInclusion_Value} > 0'},
-                    'color': '#4ade80',
+                    'color': colors['positive'],
                     'fontWeight': '700'
                 },
                 {
                     'if': {'column_id': 'SinceInclusion', 'filter_query': '{SinceInclusion_Value} < 0'},
-                    'color': '#f87171',
+                    'color': colors['negative'],
                     'fontWeight': '700'
                 },
                 {
                     'if': {'row_index': 'odd'},
-                    'backgroundColor': 'hsl(222, 34%, 15%)'
+                    'backgroundColor': colors['background'],
                 }
             ],
             style_header={
-                'backgroundColor': 'hsl(222, 30%, 17%)',
-                'color': '#eff3fa',
+                'backgroundColor': colors['content'],
+                'color': colors['text-primary'],
                 'fontWeight': 'bold',
                 'fontFamily': 'Arial, sans-serif',
                 'fontSize': '15px',
                 'padding': '16px 18px',
-                'border': '1px solid #53c9f8',
+                'border': f"1px solid {colors['border']}",
                 'textAlign': 'center'
             },
             style_table={
                 'overflowX': 'auto',
                 'WebkitOverflowScrolling': 'touch',
                 'borderRadius': '14px',
-                'boxShadow': 'none',
-                'border': '1px solid #33455f',
+                'boxShadow': '0 8px 24px rgba(16,42,67,0.07)',
+                'border': f"1px solid {colors['border']}",
                 'margin': '0.75rem 0 0 0'
             },
             sort_action='native',

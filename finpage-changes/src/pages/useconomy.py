@@ -8,41 +8,43 @@ from dash import html, dcc, callback, callback_context
 from dash.dependencies import Input, Output, State
 
 import data_sources as ds
+from theme import LIGHT_THEME
 
 dash.register_page(__name__, path="/economy")
 
+ECONOMY_THEME = LIGHT_THEME
+
 colors = {
-    "background": "#0b0f19",
-    "text": "#94a3b8",
-    "accent": "#38bdf8",
-    "text-white": "#e2e8f0",
-    "content": "#0f172a",
+    "background": ECONOMY_THEME["page"],
+    "text": ECONOMY_THEME["text_primary"],
+    "accent": ECONOMY_THEME["blue"],
+    "text-white": ECONOMY_THEME["surface"],
+    "content": ECONOMY_THEME["surface_subtle"],
 }
 
 COLORS = {
-    "background": "#0b0f19",
-    "banner": "hsl(222, 42%, 9%)",
-    "banner2": "hsl(222, 34%, 13%)",
-    "content": "#94a3b8",
-    "text": "#94a3b8",
-    "accent": "#38bdf8",
-    "border": "#1e293b",
-    "header": "#94a3b8",
-    "element": "#34d399",
-    "text-white": "#e2e8f0",
+    "background": ECONOMY_THEME["page"],
+    "banner": ECONOMY_THEME["surface"],
+    "banner2": ECONOMY_THEME["surface_subtle"],
+    "content": ECONOMY_THEME["text_secondary"],
+    "text": ECONOMY_THEME["text_primary"],
+    "accent": ECONOMY_THEME["blue"],
+    "border": ECONOMY_THEME["border"],
+    "header": ECONOMY_THEME["text_secondary"],
+    "element": ECONOMY_THEME["green"],
+    "text-white": ECONOMY_THEME["surface"],
 }
 
-# Per-series chart colors, matching the reference app's palette. GRID/TICK
-# colors are for the dark plot background -- transparent paper_bgcolor lets
-# the surrounding card's own background show through.
+# Per-series chart colors use darker, light-surface-safe hues so the financial
+# distinctions remain clear without changing any series semantics.
 CHART_COLORS = {
-    "blue": "#38bdf8",
-    "green": "#34d399",
-    "amber": "#fbbf24",
-    "red": "#f87171",
-    "violet": "#a78bfa",
-    "cyan": "#22d3ee",
-    "rose": "#fb7185",
+    "blue": ECONOMY_THEME["blue"],
+    "green": ECONOMY_THEME["green"],
+    "amber": ECONOMY_THEME["amber"],
+    "red": ECONOMY_THEME["red"],
+    "violet": ECONOMY_THEME["violet"],
+    "cyan": ECONOMY_THEME["cyan"],
+    "rose": ECONOMY_THEME["rose"],
 }
 
 # Dash renders responsive Graph components with an inline ``height: 100%``.
@@ -54,11 +56,11 @@ ECONOMY_GRAPH_STYLE = {
     "minHeight": "380px",
 }
 
-GRID_COLOR = "#1e293b"
-AXIS_TEXT_COLOR = "#64748b"
-TOOLTIP_BG = "#0b1424"
-TOOLTIP_TEXT = "#e2e8f0"
-CARD_COLOR = "hsl(222, 42%, 9%)"
+GRID_COLOR = ECONOMY_THEME["grid"]
+AXIS_TEXT_COLOR = ECONOMY_THEME["text_muted"]
+TOOLTIP_BG = ECONOMY_THEME["tooltip_bg"]
+TOOLTIP_TEXT = ECONOMY_THEME["tooltip_text"]
+CARD_COLOR = ECONOMY_THEME["surface"]
 
 
 def _fill_from_line(hex_color, opacity=0.18):
@@ -153,8 +155,8 @@ def create_empty_figure(title, message):
             )
         ],
         font=dict(family="Helvetica", size=15, color=COLORS["text"]),
-        paper_bgcolor="rgba(0,0,0,0)",
-        plot_bgcolor="rgba(0,0,0,0)",
+        paper_bgcolor=ECONOMY_THEME["transparent"],
+        plot_bgcolor=ECONOMY_THEME["transparent"],
         height=560,
         margin=dict(l=20, r=20, t=60, b=40),
     )
@@ -339,8 +341,8 @@ def create_graph(
         title_x=0.5,
         margin=dict(l=20, r=20, t=60, b=40),
         font=dict(family="Helvetica", size=15, color=colors["text"]),
-        plot_bgcolor="rgba(0,0,0,0)",
-        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor=ECONOMY_THEME["transparent"],
+        paper_bgcolor=ECONOMY_THEME["transparent"],
         yaxis=dict(range=[y_min, y_max]),
         height=560,
         uirevision="constant",
@@ -530,8 +532,8 @@ def create_comparison_figure(
         xaxis_title="Date",
         margin=dict(l=20, r=20, t=60, b=50),
         font=dict(family="Helvetica", size=15, color=colors["text"]),
-        plot_bgcolor="rgba(0,0,0,0)",
-        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor=ECONOMY_THEME["transparent"],
+        paper_bgcolor=ECONOMY_THEME["transparent"],
         legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="center", x=0.5, font=dict(color=colors["text"])),
         height=460,
         uirevision="constant",
