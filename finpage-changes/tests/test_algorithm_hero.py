@@ -5,6 +5,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 import dash
+import pandas as pd
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -80,6 +81,64 @@ class AlgorithmHeroTests(unittest.TestCase):
         self.assertIn("lineTo", script)
         self.assertIn("stroke", script)
         self.assertIn("fill", script)
+
+
+class AlgorithmGraphInteractionTests(unittest.TestCase):
+    def test_graph_components_explicitly_disable_zoom_controls(self):
+        graphs = [
+            component
+            for component in walk_components(algorithm.layout)
+            if component.to_plotly_json().get("type") == "Graph"
+        ]
+
+        self.assertEqual(len(graphs), 2)
+        for graph in graphs:
+            config = graph.to_plotly_json()["props"]["config"]
+            self.assertFalse(config["displayModeBar"])
+            self.assertFalse(config["scrollZoom"])
+            self.assertFalse(config["doubleClick"])
+            self.assertTrue(config["responsive"])
+
+    def test_portfolio_figure_locks_both_axes_without_disabling_hover(self):
+        dates = pd.date_range("2026-01-02", periods=3, freq="D")
+        frame = pd.DataFrame({
+            "Date": dates,
+            "Portfolio_Cumulative_Period": [0.0, 0.01, 0.02],
+            "ACWI_Cumulative_Period": [0.0, 0.005, 0.01],
+        })
+
+        figure = algorithm.create_portfolio_graph(
+            title="Test",
+            dataframe=frame,
+            y_column="Portfolio_Cumulative_Period",
+            start_date=dates.min(),
+            end_date=dates.max(),
+            currency="USD",
+        )
+
+        self.assertTrue(figure.layout.xaxis.fixedrange)
+        self.assertTrue(figure.layout.yaxis.fixedrange)
+        self.assertFalse(figure.layout.dragmode)
+        self.assertEqual(figure.layout.hovermode, "x unified")
+
+    def test_empty_portfolio_figure_is_also_zoom_locked(self):
+        frame = pd.DataFrame({
+            "Date": pd.to_datetime([]),
+            "Portfolio_Cumulative_Period": [],
+            "ACWI_Cumulative_Period": [],
+        })
+
+        figure = algorithm.create_portfolio_graph(
+            title="Test",
+            dataframe=frame,
+            y_column="Portfolio_Cumulative_Period",
+            start_date="2026-01-01",
+            end_date="2026-12-31",
+        )
+
+        self.assertTrue(figure.layout.xaxis.fixedrange)
+        self.assertTrue(figure.layout.yaxis.fixedrange)
+        self.assertFalse(figure.layout.dragmode)
 
 
 if __name__ == "__main__":

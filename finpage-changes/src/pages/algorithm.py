@@ -53,6 +53,22 @@ colors = {
 }
 
 
+ALGORITHM_GRAPH_CONFIG = {
+    'displayModeBar': False,
+    'responsive': True,
+    'scrollZoom': False,
+    'doubleClick': False,
+}
+
+
+def _lock_graph_navigation(fig):
+    """Keep hover details available while preventing axis zoom and pan."""
+    fig.update_layout(dragmode=False)
+    fig.update_xaxes(fixedrange=True)
+    fig.update_yaxes(fixedrange=True)
+    return fig
+
+
 description_2015 = '''The algorithm was fitted over 2015-2024 to optimize the Sharpe Ratio of a stock-selection strategy based on fundamental factors from Morningstar. The chart uses monthly observations in training and daily observations after training.'''
 description_2020 = '''The algorithm was fitted over 2020-2024 to optimize the Sharpe Ratio of a stock-selection strategy based on fundamental factors from Morningstar. The chart uses monthly observations in training and daily observations after training.'''
 
@@ -120,7 +136,7 @@ def create_portfolio_graph(
             plot_bgcolor=LIGHT_THEME['transparent'],
             paper_bgcolor=LIGHT_THEME['transparent'],
         )
-        return fig
+        return _lock_graph_navigation(fig)
 
     fig = go.Figure()
 
@@ -279,6 +295,7 @@ def create_portfolio_graph(
         tickformat=".1%",
     )
     fig.update_layout(uirevision='constant')
+    _lock_graph_navigation(fig)
 
     if training_end is not None and start_date <= pd.to_datetime(training_end) <= end_date:
         boundary = pd.to_datetime(training_end)
@@ -603,7 +620,7 @@ layout = html.Div(dbc.Container([
                 id='portfolio-cumulative-chart',
                 className='algo-performance-graph algo-full-history-graph',
                 responsive=True,
-                config={'displayModeBar': False, 'responsive': True},
+                config=ALGORITHM_GRAPH_CONFIG,
                 style={'height': '700px'},
             )
         ], className='algo-section-card algo-graph-card', style=SECTION_CARD_STYLE), width=12)
@@ -620,7 +637,7 @@ layout = html.Div(dbc.Container([
                 id='period-cumulative-chart',
                 className='algo-performance-graph algo-selected-period-graph',
                 responsive=True,
-                config={'displayModeBar': False, 'responsive': True},
+                config=ALGORITHM_GRAPH_CONFIG,
                 style={'height': '700px'},
             )
         ], className='algo-section-card algo-graph-card', style=SECTION_CARD_STYLE), width=12)
@@ -699,6 +716,7 @@ def update_dashboard(composition_sheet, period, currency):
             paper_bgcolor=LIGHT_THEME['transparent'],
             plot_bgcolor=LIGHT_THEME['transparent'],
         )
+        _lock_graph_navigation(empty_fig)
 
         no_data_card = dbc.Card(
             dbc.CardBody(
