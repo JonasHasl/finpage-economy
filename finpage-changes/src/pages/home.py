@@ -10,7 +10,7 @@ dash.register_page(__name__, path="/")
 
 _SVG_ATTRS = (
     'xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" '
-    'stroke="hsl(199, 89%, 55%)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"'
+    'stroke="#0369a1" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"'
 )
 
 # Self-contained inline icons (no external icon-font dependency) -- encoded
@@ -32,7 +32,7 @@ _ICONS = {
 }
 
 
-# Slow-floating translucent circles for the dark hero background.
+# Slow-floating translucent circles for the bright ambient hero background.
 _BUBBLE_SHADES = [
     "199 89% 48%",  # sky blue
     "210 80% 52%",  # bright blue
@@ -48,7 +48,7 @@ def _make_bubble(i):
     duration = 16 + random.random() * 20  # 16-36s, slow drift
     delay = -random.random() * 30  # negative = mid-float on load
     drift = (random.random() - 0.5) * 140
-    opacity = 0.25 + random.random() * 0.2  # 0.25-0.45, clearly visible
+    opacity = 0.10 + random.random() * 0.10  # Visible without clouding light surfaces.
     color = _BUBBLE_SHADES[i % len(_BUBBLE_SHADES)]
     return html.Div(
         className="home-bubble",

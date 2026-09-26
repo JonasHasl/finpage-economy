@@ -5,13 +5,120 @@ import plotly.graph_objects as go
 import pandas as pd
 import numpy as np
 from datetime import datetime, timedelta
-import matplotlib.dates as mdates
 from fredapi import Fred
 import dash_bootstrap_components as dbc
 import io
 import requests
+from theme import LIGHT_THEME
 
 dash.register_page(__name__, path='/yield_curves')
+
+BOND_MARKET_THEME = {
+    'page': LIGHT_THEME['page'],
+    'surface': LIGHT_THEME['surface'],
+    'subtle': LIGHT_THEME['surface_subtle'],
+    'text': LIGHT_THEME['text_primary'],
+    'text_secondary': LIGHT_THEME['text_secondary'],
+    'text_muted': LIGHT_THEME['text_muted'],
+    'border': LIGHT_THEME['border'],
+    'grid': LIGHT_THEME['grid'],
+    'blue': LIGHT_THEME['blue'],
+    'green': LIGHT_THEME['green'],
+    'red': LIGHT_THEME['red'],
+    'amber': LIGHT_THEME['amber'],
+    'violet': LIGHT_THEME['violet'],
+    'cyan': LIGHT_THEME['cyan'],
+    'rose': LIGHT_THEME['rose'],
+}
+
+TRANSPARENT_BACKGROUND = LIGHT_THEME['transparent']
+
+YIELD_PANEL_STYLE = {
+    'padding': '10px',
+    'backgroundColor': BOND_MARKET_THEME['surface'],
+    'border': f"1px solid {BOND_MARKET_THEME['border']}",
+    'borderRadius': '10px',
+    'marginBottom': '20px',
+    'marginLeft': 'auto',
+    'marginRight': 'auto',
+    'width': 'min(100%, 1000px)',
+    'overflowX': 'auto',
+    'WebkitOverflowScrolling': 'touch',
+}
+
+BOND_GRAPH_STYLE_3D = {
+    'height': '1000px',
+    'marginLeft': 'auto',
+    'marginRight': 'auto',
+    'width': 'min(100%, 1000px)',
+}
+
+BOND_GRAPH_STYLE_2D = {
+    'height': '500px',
+    'marginLeft': 'auto',
+    'marginRight': 'auto',
+    'width': 'min(100%, 1000px)',
+}
+
+BOND_GRAPH_CONFIG = {
+    'displayModeBar': False,
+    'responsive': True,
+    'scrollZoom': False,
+    'doubleClick': False,
+}
+
+BOND_MARKET_PAGE_STYLE = {
+    'backgroundColor': BOND_MARKET_THEME['page'],
+    'color': BOND_MARKET_THEME['text'],
+    'minHeight': '100vh',
+    '--surface-page': BOND_MARKET_THEME['page'],
+    '--surface-raised': BOND_MARKET_THEME['surface'],
+    '--surface-subtle': BOND_MARKET_THEME['subtle'],
+    '--text-primary': BOND_MARKET_THEME['text'],
+    '--text-secondary': BOND_MARKET_THEME['text_secondary'],
+    '--text-muted': BOND_MARKET_THEME['text_muted'],
+    '--border-subtle': BOND_MARKET_THEME['border'],
+    '--grid-color': BOND_MARKET_THEME['grid'],
+    '--interactive': BOND_MARKET_THEME['blue'],
+    '--positive': BOND_MARKET_THEME['green'],
+    '--negative': BOND_MARKET_THEME['red'],
+    '--warning': BOND_MARKET_THEME['amber'],
+    '--violet': BOND_MARKET_THEME['violet'],
+    '--cyan': BOND_MARKET_THEME['cyan'],
+    '--rose': BOND_MARKET_THEME['rose'],
+    '--background-color': BOND_MARKET_THEME['page'],
+    '--banner-color': BOND_MARKET_THEME['surface'],
+    '--banner2-color': BOND_MARKET_THEME['subtle'],
+    '--text-color': BOND_MARKET_THEME['text_secondary'],
+    '--accent-color': BOND_MARKET_THEME['blue'],
+    '--border-color': BOND_MARKET_THEME['border'],
+    '--header-color': BOND_MARKET_THEME['text_muted'],
+    '--element-color': BOND_MARKET_THEME['green'],
+    '--text-white-color': BOND_MARKET_THEME['text'],
+    '--card-color': BOND_MARKET_THEME['surface'],
+}
+
+
+def _lock_graph_navigation(fig, *, is_3d=False):
+    """Keep hover details available while preventing chart navigation."""
+    if is_3d:
+        fig.update_scenes(dragmode=False)
+    else:
+        fig.update_layout(dragmode=False)
+        fig.update_xaxes(fixedrange=True)
+        fig.update_yaxes(fixedrange=True)
+    return fig
+
+
+def bond_graph(graph_id, style):
+    """Create a responsive graph with navigation locked consistently."""
+    return dcc.Graph(
+        id=graph_id,
+        config=BOND_GRAPH_CONFIG.copy(),
+        responsive=True,
+        style=style,
+    )
+
 
 def create_yield_table(data, columns, labels, table_id):
     """Create standardized yield table component for Dash"""
@@ -29,13 +136,14 @@ def create_yield_table(data, columns, labels, table_id):
                 'height': 'auto',
                 'width': 'auto',
                 'font-family': 'Arial',
-                'color': '#e2e8f0',
+                'color': BOND_MARKET_THEME['text'],
                 'font-size': '14px',
             },
             style_cell={
                 'padding': '10px',
                 'textAlign': 'right',
-                'backgroundColor': '#0d1321'
+                'backgroundColor': BOND_MARKET_THEME['surface'],
+                'border': f"1px solid {BOND_MARKET_THEME['border']}",
             },
             style_cell_conditional=[{
                 'if': {'column_id': 'Date'},
@@ -46,9 +154,10 @@ def create_yield_table(data, columns, labels, table_id):
             } for col in labels],
             style_header={
                 'fontWeight': 'bold',
-                'color': '#e2e8f0',
+                'color': BOND_MARKET_THEME['text'],
+                'backgroundColor': BOND_MARKET_THEME['subtle'],
                 'whiteSpace': 'normal',
-                'border': '2px solid #1e293b',
+                'border': f"2px solid {BOND_MARKET_THEME['border']}",
                 'borderRadius': '0px',
                 'font-family': 'Arial',
                 'font-size': '20px'
@@ -60,7 +169,7 @@ def create_yield_table(data, columns, labels, table_id):
                 'width': 'auto'
             }
         )
-    ], style={'padding': '10px', 'backgroundColor': 'hsl(222, 42%, 9%)', 'border': '1px solid hsl(222, 30%, 16%)', 'borderRadius': '10px', 'marginBottom': '20px', 'marginLeft':'10%', 'marginRight':'10%'})
+    ], style=YIELD_PANEL_STYLE)
 
 def serve_layout():
     global nor_cur_data, nor_yield_df, nor_yield_monthly, nor_yield_monthly_reset, nor_last_yields, norwegian_labels
@@ -122,7 +231,13 @@ def serve_layout():
     
     nor_static_yield_table = html.Table(
         nor_static_table_content,
-        style={'width': '100%', 'borderCollapse': 'collapse', 'border': '1px solid #1e293b', 'color': '#e2e8f0'},
+        style={
+            'width': '100%',
+            'borderCollapse': 'collapse',
+            'border': f"1px solid {BOND_MARKET_THEME['border']}",
+            'backgroundColor': BOND_MARKET_THEME['surface'],
+            'color': BOND_MARKET_THEME['text'],
+        },
     )
     
     nor_yield_table_header = html.Div(f"Yields as of {nor_today}", style={'fontWeight': 'bold', 'marginBottom': '10px'})
@@ -168,18 +283,23 @@ def serve_layout():
     
     static_yield_table = html.Table(
         static_table_content,
-        style={'width': '100%', 'borderCollapse': 'collapse', 'border': '1px solid #1e293b', 'color': '#e2e8f0'},
+        style={
+            'width': '100%',
+            'borderCollapse': 'collapse',
+            'border': f"1px solid {BOND_MARKET_THEME['border']}",
+            'backgroundColor': BOND_MARKET_THEME['surface'],
+            'color': BOND_MARKET_THEME['text'],
+        },
     )
     
     yield_table_header = html.Div(f"Yields as of {today.date()}", style={'fontWeight': 'bold', 'marginBottom': '10px', 'textAlign':'center'})
     
     tab1_content = html.Div([
-        html.H1("US Bond Market Data", style={'textAlign':'center', 'color': 'var(--text-white-color)'}),
+        html.H1("US Bond Market Data", style={'textAlign':'center', 'color': BOND_MARKET_THEME['text']}),
         dbc.Card(
             dbc.CardBody(
                 html.Div([
-                    html.Div([yield_table_header, static_yield_table], style={'padding': '10px', 'backgroundColor': 'hsl(222, 42%, 9%)', 'border': '1px solid hsl(222, 30%, 16%)',
-                                                                           'borderRadius': '5px', 'marginBottom': '20px', 'marginLeft':'10%', 'marginRight':'10%'}),
+                    html.Div([yield_table_header, static_yield_table], style={**YIELD_PANEL_STYLE, 'borderRadius': '5px'}),
                     dcc.RadioItems(
                         id='us-date-range',
                         options=[
@@ -191,24 +311,28 @@ def serve_layout():
                         inputStyle={'marginRight': '6px', 'marginLeft': '12px'},
                         labelStyle={'display': 'inline-block', 'marginRight': '12px'}
                     ),
-                    dcc.Graph(id='yield-curve-3df', config={'scrollZoom': True}, style={'height': '1000px', 'marginLeft':'10%', 'marginRight':'10%'}),
+                    bond_graph('yield-curve-3df', BOND_GRAPH_STYLE_3D),
                     html.Br(),
-                    dcc.Graph(id='latest-yield-curve-us', style={'height': '500px', 'marginLeft':'10%', 'marginRight':'10%'}),
+                    bond_graph('latest-yield-curve-us', BOND_GRAPH_STYLE_2D),
                     html.Br(),
                     create_yield_table(table_yields, table_yields.columns, ['Date'], 'us-yield-table')
-                ], style={'textAlign': 'center'})
+                ], style={'textAlign': 'center', 'color': BOND_MARKET_THEME['text_secondary']})
             ),
-            className="shadow my-2"  # Adds a shadow effect to the card
+            className="shadow my-2",
+            style={
+                'backgroundColor': BOND_MARKET_THEME['surface'],
+                'borderColor': BOND_MARKET_THEME['border'],
+                'color': BOND_MARKET_THEME['text'],
+            },
         )
     ])
     
     norwegian_yield_curve_layout = html.Div([
-        html.H1("Norwegian Bond Market Data", style={'textAlign':'center', 'color': 'var(--text-white-color)'}),
+        html.H1("Norwegian Bond Market Data", style={'textAlign':'center', 'color': BOND_MARKET_THEME['text']}),
         dbc.Card(
             dbc.CardBody(
                 html.Div([
-                    html.Div([nor_yield_table_header, nor_static_yield_table], style={'padding': '10px', 'backgroundColor': 'hsl(222, 42%, 9%)', 'border': '1px solid hsl(222, 30%, 16%)',
-                                                                                   'borderRadius': '5px', 'marginBottom': '20px', 'marginLeft':'10%', 'marginRight':'10%'}),
+                    html.Div([nor_yield_table_header, nor_static_yield_table], style={**YIELD_PANEL_STYLE, 'borderRadius': '5px'}),
                     dcc.RadioItems(
                         id='nor-date-range',
                         options=[
@@ -220,19 +344,24 @@ def serve_layout():
                         inputStyle={'marginRight': '6px', 'marginLeft': '12px'},
                         labelStyle={'display': 'inline-block', 'marginRight': '12px'}
                     ),
-                    dcc.Graph(id='nor-yield-curve-3d', config={'scrollZoom': True}, style={'height': '1000px', 'marginLeft':'10%', 'marginRight':'10%'}),
+                    bond_graph('nor-yield-curve-3d', BOND_GRAPH_STYLE_3D),
                     html.Br(),
-                    dcc.Graph(id='latest-yield-curve-nor', style={'height': '500px', 'marginLeft':'10%', 'marginRight':'10%'}),
+                    bond_graph('latest-yield-curve-nor', BOND_GRAPH_STYLE_2D),
                     html.Br(),
-                    dcc.Graph(id='nor-yield-curve-2d', style={'height': '500px', 'marginLeft':'10%', 'marginRight':'10%'}),
+                    bond_graph('nor-yield-curve-2d', BOND_GRAPH_STYLE_2D),
                     html.Br(),
-                    dcc.Graph(id='nor-usd-eur-graph', style={'height': '500px', 'marginLeft':'10%', 'marginRight':'10%'}),
+                    bond_graph('nor-usd-eur-graph', BOND_GRAPH_STYLE_2D),
                     html.Br(),
-                    dcc.Graph(id='nor-sek-dkk-graph', style={'height': '500px', 'marginLeft':'10%', 'marginRight':'10%'}),
+                    bond_graph('nor-sek-dkk-graph', BOND_GRAPH_STYLE_2D),
                     create_yield_table(nor_yield_monthly_reset, nor_yield_monthly_reset.columns, ['Date'], 'nor-yield-table')
-                ], style={'textAlign': 'center'})
+                ], style={'textAlign': 'center', 'color': BOND_MARKET_THEME['text_secondary']})
             ),
-            className="shadow my-2"  # Adds a shadow effect to the card
+            className="shadow my-2",
+            style={
+                'backgroundColor': BOND_MARKET_THEME['surface'],
+                'borderColor': BOND_MARKET_THEME['border'],
+                'color': BOND_MARKET_THEME['text'],
+            },
         )
     ])
     
@@ -247,10 +376,10 @@ def serve_layout():
                 ),
                 html.Div(id='tabs-content')
             ])
-    ], className='', fluid=True, style={})
+    ], className='', fluid=True, style=BOND_MARKET_PAGE_STYLE)
     
     layout = dbc.Container([html.Div(className='beforediv'), layout_page],
-        className='')
+        className='', style=BOND_MARKET_PAGE_STYLE)
     
     return layout
 
@@ -291,8 +420,8 @@ def update_latest_yield_curve_nor(date_range):
         x=norwegian_labels,
         y=latest_yield_curve,
         mode='lines+markers',
-        line=dict(color='#38bdf8'),  # Blue line
-        marker=dict(size=10, color='#38bdf8'),  # Blue markers
+        line=dict(color=BOND_MARKET_THEME['blue']),  # Blue line
+        marker=dict(size=10, color=BOND_MARKET_THEME['blue']),  # Blue markers
         hoverinfo='x+y',
     )])
     
@@ -301,21 +430,21 @@ def update_latest_yield_curve_nor(date_range):
         title_x=0.5,  # Center title
         xaxis_title='Maturity',
         yaxis_title='Yield (%)',
-        font=dict(family='Arial', size=14, color='#94a3b8'),  # Font style
+        font=dict(family='Arial', size=14, color=BOND_MARKET_THEME['text_secondary']),  # Font style
         margin=dict(l=50, r=50, t=100, b=50),  # Adjust margins
-        paper_bgcolor='rgba(0,0,0,0)',  # Background color
-        plot_bgcolor='rgba(0,0,0,0)',  # Plot background color
+        paper_bgcolor=TRANSPARENT_BACKGROUND,  # Background color
+        plot_bgcolor=TRANSPARENT_BACKGROUND,  # Plot background color
         xaxis=dict(
-            gridcolor='#1e293b',  # Grid color
-            zerolinecolor='#1e293b'  # Zero line color
+            gridcolor=BOND_MARKET_THEME['grid'],  # Grid color
+            zerolinecolor=BOND_MARKET_THEME['border']  # Zero line color
         ),
         yaxis=dict(
-            gridcolor='#1e293b',  # Grid color
-            zerolinecolor='#1e293b'  # Zero line color
+            gridcolor=BOND_MARKET_THEME['grid'],  # Grid color
+            zerolinecolor=BOND_MARKET_THEME['border']  # Zero line color
         )
     )
     
-    return fig
+    return _lock_graph_navigation(fig)
 
 
 
@@ -345,21 +474,29 @@ def update_graph(date_range):
         
         fig.update_layout(
             title=f"No Yield Curve Data Available from {start_date.date()} to {end_date.date()}",
-            paper_bgcolor='rgba(0,0,0,0)',
-            font=dict(color='#94a3b8'),
+            paper_bgcolor=TRANSPARENT_BACKGROUND,
+            font=dict(color=BOND_MARKET_THEME['text_secondary']),
             scene=dict(
                 xaxis_title=' ',
                 yaxis_title='Maturity',
                 zaxis_title='Yield (%)',
                 xaxis=dict(
-                    backgroundcolor='#0f172a'
+                    backgroundcolor=BOND_MARKET_THEME['subtle'],
+                    gridcolor=BOND_MARKET_THEME['grid'],
+                    zerolinecolor=BOND_MARKET_THEME['border'],
                 ),
                 yaxis=dict(
                     tickvals=np.arange(len(maturity_labels)),
                     ticktext=maturity_labels,
-                    backgroundcolor='#0f172a'
+                    backgroundcolor=BOND_MARKET_THEME['subtle'],
+                    gridcolor=BOND_MARKET_THEME['grid'],
+                    zerolinecolor=BOND_MARKET_THEME['border'],
                 ),
-                zaxis=dict(backgroundcolor='#0f172a')
+                zaxis=dict(
+                    backgroundcolor=BOND_MARKET_THEME['subtle'],
+                    gridcolor=BOND_MARKET_THEME['grid'],
+                    zerolinecolor=BOND_MARKET_THEME['border'],
+                )
             ),
             scene_camera=dict(eye=dict(x=1.25, y=1.25, z=1.25)),
         )
@@ -395,15 +532,20 @@ def update_graph(date_range):
 
         # Update layout for the 3D plot
         fig.update_layout(
-            title=f"Yield Curve (1-month to 30-year) from {start_date.date()} to {end_date.date()}",
-            paper_bgcolor='rgba(0,0,0,0)',
-            font=dict(color='#94a3b8'),
+            title=(
+                "Yield Curve (1-month to 30-year)"
+                f"<br><sup>{start_date.date()} to {end_date.date()}</sup>"
+            ),
+            paper_bgcolor=TRANSPARENT_BACKGROUND,
+            font=dict(color=BOND_MARKET_THEME['text_secondary']),
             scene=dict(
                 xaxis=dict(
                     tickmode='array',
                     tickvals=x_ticks,
                     ticktext=[d.strftime('%Y-%m-%d') for d in x_ticks],
-                    backgroundcolor='#0f172a'
+                    backgroundcolor=BOND_MARKET_THEME['subtle'],
+                    gridcolor=BOND_MARKET_THEME['grid'],
+                    zerolinecolor=BOND_MARKET_THEME['border'],
                 ), 
                 xaxis_title=' ',
                 yaxis_title='Maturity',
@@ -411,15 +553,21 @@ def update_graph(date_range):
                 yaxis=dict(
                     tickvals=np.arange(len(maturity_labels)), 
                     ticktext=maturity_labels,
-                    backgroundcolor='#0f172a'
+                    backgroundcolor=BOND_MARKET_THEME['subtle'],
+                    gridcolor=BOND_MARKET_THEME['grid'],
+                    zerolinecolor=BOND_MARKET_THEME['border'],
                 ),
-                zaxis=dict(backgroundcolor='#0f172a')
+                zaxis=dict(
+                    backgroundcolor=BOND_MARKET_THEME['subtle'],
+                    gridcolor=BOND_MARKET_THEME['grid'],
+                    zerolinecolor=BOND_MARKET_THEME['border'],
+                )
             ),
             scene_camera=dict(eye=dict(x=1.25, y=1.25, z=1.25)),
         )
         fig.update_layout(showlegend=False)
     
-    return fig
+    return _lock_graph_navigation(fig, is_3d=True)
 
 
 @callback(
@@ -434,8 +582,8 @@ def update_latest_yield_curve_us(date_range):
         x=maturity_labels,
         y=latest_yield_curve,
         mode='lines+markers',
-        line=dict(color='#38bdf8'),  # Blue line
-        marker=dict(size=10, color='#38bdf8'),  # Blue markers
+        line=dict(color=BOND_MARKET_THEME['blue']),  # Blue line
+        marker=dict(size=10, color=BOND_MARKET_THEME['blue']),  # Blue markers
         hoverinfo='x+y',
     )])
     
@@ -444,21 +592,21 @@ def update_latest_yield_curve_us(date_range):
         title_x=0.5,  # Center title
         xaxis_title='Maturity',
         yaxis_title='Yield (%)',
-        font=dict(family='Arial', size=14, color='#94a3b8'),  # Font style
+        font=dict(family='Arial', size=14, color=BOND_MARKET_THEME['text_secondary']),  # Font style
         margin=dict(l=50, r=50, t=100, b=50),  # Adjust margins
-        paper_bgcolor='rgba(0,0,0,0)',  # Background color
-        plot_bgcolor='rgba(0,0,0,0)',  # Plot background color
+        paper_bgcolor=TRANSPARENT_BACKGROUND,  # Background color
+        plot_bgcolor=TRANSPARENT_BACKGROUND,  # Plot background color
         xaxis=dict(
-            gridcolor='#1e293b',  # Grid color
-            zerolinecolor='#1e293b'  # Zero line color
+            gridcolor=BOND_MARKET_THEME['grid'],  # Grid color
+            zerolinecolor=BOND_MARKET_THEME['border']  # Zero line color
         ),
         yaxis=dict(
-            gridcolor='#1e293b',  # Grid color
-            zerolinecolor='#1e293b'  # Zero line color
+            gridcolor=BOND_MARKET_THEME['grid'],  # Grid color
+            zerolinecolor=BOND_MARKET_THEME['border']  # Zero line color
         )
     )
     
-    return fig
+    return _lock_graph_navigation(fig)
 
 
 
@@ -499,9 +647,12 @@ def update_norwegian_graph(date_range):
     )])
 
     fig.update_layout(
-        title=f"Norwegian Yield Curve (3M to 10Y) from {start_date.date()} to {end_date.date()}",
-        paper_bgcolor='rgba(0,0,0,0)',
-        font=dict(color='#94a3b8'),
+        title=(
+            "Norwegian Yield Curve (3M to 10Y)"
+            f"<br><sup>{start_date.date()} to {end_date.date()}</sup>"
+        ),
+        paper_bgcolor=TRANSPARENT_BACKGROUND,
+        font=dict(color=BOND_MARKET_THEME['text_secondary']),
         scene=dict(
             xaxis_title=' ',
             yaxis_title='Maturity',
@@ -510,14 +661,22 @@ def update_norwegian_graph(date_range):
                 tickmode='array',
                 tickvals=x_ticks,
                 ticktext=[d.strftime('%Y-%m-%d') for d in x_ticks],
-                backgroundcolor='#0f172a'
+                backgroundcolor=BOND_MARKET_THEME['subtle'],
+                gridcolor=BOND_MARKET_THEME['grid'],
+                zerolinecolor=BOND_MARKET_THEME['border'],
             ),
             yaxis=dict(
                 tickvals=np.arange(len(norwegian_labels)),
                 ticktext=norwegian_labels,
-                backgroundcolor='#0f172a'
+                backgroundcolor=BOND_MARKET_THEME['subtle'],
+                gridcolor=BOND_MARKET_THEME['grid'],
+                zerolinecolor=BOND_MARKET_THEME['border'],
             ),
-            zaxis=dict(backgroundcolor='#0f172a')
+            zaxis=dict(
+                backgroundcolor=BOND_MARKET_THEME['subtle'],
+                gridcolor=BOND_MARKET_THEME['grid'],
+                zerolinecolor=BOND_MARKET_THEME['border'],
+            )
         ),
         scene_camera=dict(
             eye=dict(x=1.25, y=1.25, z=1.25),
@@ -540,7 +699,7 @@ def update_norwegian_graph(date_range):
     fig.update_layout(showlegend=False)
     fig.update_annotations(font=dict(family="Helvetica", size=12))
     
-    return fig
+    return _lock_graph_navigation(fig, is_3d=True)
 
 @callback(
     Output('nor-yield-curve-2d', 'figure'),
@@ -563,7 +722,7 @@ def update_norwegian_yield_curve_2d(date_range):
         y=filtered_data['3M'],
         mode='lines',
         name='3M',
-        line=dict(color='#38bdf8')
+        line=dict(color=BOND_MARKET_THEME['blue'])
     ))
     
     fig.add_trace(go.Scatter(
@@ -571,7 +730,7 @@ def update_norwegian_yield_curve_2d(date_range):
         y=filtered_data['3Y'],
         mode='lines',
         name='3Y',
-        line=dict(color='#34d399')
+        line=dict(color=BOND_MARKET_THEME['green'])
     ))
     
     fig.add_trace(go.Scatter(
@@ -579,7 +738,7 @@ def update_norwegian_yield_curve_2d(date_range):
         y=filtered_data['10Y'],
         mode='lines',
         name='10Y',
-        line=dict(color='#fbbf24')
+        line=dict(color=BOND_MARKET_THEME['amber'])
     ))
     
     # Add final observation markers
@@ -587,7 +746,7 @@ def update_norwegian_yield_curve_2d(date_range):
         x=[filtered_data.index[-1]],
         y=[filtered_data['3M'].iloc[-1]],  # Use .iloc here for integer indexing
         mode='markers',
-        marker=dict(color='#f87171', size=10),
+        marker=dict(color=BOND_MARKET_THEME['red'], size=10),
         showlegend=False
     ))
     
@@ -595,7 +754,7 @@ def update_norwegian_yield_curve_2d(date_range):
         x=[filtered_data.index[-1]],
         y=[filtered_data['3Y'].iloc[-1]],  # Use .iloc here for integer indexing
         mode='markers',
-        marker=dict(color='#f87171', size=10),
+        marker=dict(color=BOND_MARKET_THEME['red'], size=10),
         showlegend=False
     ))
     
@@ -603,7 +762,7 @@ def update_norwegian_yield_curve_2d(date_range):
         x=[filtered_data.index[-1]],
         y=[filtered_data['10Y'].iloc[-1]],  # Use .iloc here for integer indexing
         mode='markers',
-        marker=dict(color='#f87171', size=10),
+        marker=dict(color=BOND_MARKET_THEME['red'], size=10),
         showlegend=False
     ))
     
@@ -636,21 +795,21 @@ def update_norwegian_yield_curve_2d(date_range):
         title='Norwegian Government Yields (3M, 3Y, 10Y)',
         xaxis_title='Date',
         yaxis_title='Yield (%)',
-        font=dict(family='Arial', size=14, color='#94a3b8'),
+        font=dict(family='Arial', size=14, color=BOND_MARKET_THEME['text_secondary']),
         margin=dict(l=50, r=50, t=100, b=50),
-        paper_bgcolor='rgba(0,0,0,0)',
-        plot_bgcolor='rgba(0,0,0,0)',
+        paper_bgcolor=TRANSPARENT_BACKGROUND,
+        plot_bgcolor=TRANSPARENT_BACKGROUND,
         xaxis=dict(
-            gridcolor='#1e293b',
-            zerolinecolor='#1e293b'
+            gridcolor=BOND_MARKET_THEME['grid'],
+            zerolinecolor=BOND_MARKET_THEME['border']
         ),
         yaxis=dict(
-            gridcolor='#1e293b',
-            zerolinecolor='#1e293b'
+            gridcolor=BOND_MARKET_THEME['grid'],
+            zerolinecolor=BOND_MARKET_THEME['border']
         )
     )
     
-    return fig
+    return _lock_graph_navigation(fig)
 
 
 
@@ -680,7 +839,7 @@ def update_nor_usd_eur_graph(date_range):
         y=usd_data['OBS_VALUE'],
         mode='lines',
         name='USD/NOK',
-        line=dict(color='#38bdf8')
+        line=dict(color=BOND_MARKET_THEME['blue'])
     ))
     
     fig.add_trace(go.Scatter(
@@ -688,7 +847,7 @@ def update_nor_usd_eur_graph(date_range):
         y=eur_data['OBS_VALUE'],
         mode='lines',
         name='EUR/NOK',
-        line=dict(color='#34d399')
+        line=dict(color=BOND_MARKET_THEME['green'])
     ))
     
     # Add final observation markers
@@ -696,7 +855,7 @@ def update_nor_usd_eur_graph(date_range):
         x=[usd_data['TIME_PERIOD'].iloc[-1]],
         y=[usd_data['OBS_VALUE'].iloc[-1]],
         mode='markers',
-        marker=dict(color='#f87171', size=10),
+        marker=dict(color=BOND_MARKET_THEME['red'], size=10),
         showlegend=False
     ))
     
@@ -704,7 +863,7 @@ def update_nor_usd_eur_graph(date_range):
         x=[eur_data['TIME_PERIOD'].iloc[-1]],
         y=[eur_data['OBS_VALUE'].iloc[-1]],
         mode='markers',
-        marker=dict(color='#f87171', size=10),
+        marker=dict(color=BOND_MARKET_THEME['red'], size=10),
         showlegend=False
     ))
     
@@ -729,21 +888,21 @@ def update_nor_usd_eur_graph(date_range):
         title='USD/NOK and EUR/NOK Exchange Rates',
         xaxis_title='Date',
         yaxis_title='Exchange Rate',
-        font=dict(family='Arial', size=14, color='#94a3b8'),
+        font=dict(family='Arial', size=14, color=BOND_MARKET_THEME['text_secondary']),
         margin=dict(l=50, r=50, t=100, b=50),
-        paper_bgcolor='rgba(0,0,0,0)',
-        plot_bgcolor='rgba(0,0,0,0)',
+        paper_bgcolor=TRANSPARENT_BACKGROUND,
+        plot_bgcolor=TRANSPARENT_BACKGROUND,
         xaxis=dict(
-            gridcolor='#1e293b',
-            zerolinecolor='#1e293b'
+            gridcolor=BOND_MARKET_THEME['grid'],
+            zerolinecolor=BOND_MARKET_THEME['border']
         ),
         yaxis=dict(
-            gridcolor='#1e293b',
-            zerolinecolor='#1e293b'
+            gridcolor=BOND_MARKET_THEME['grid'],
+            zerolinecolor=BOND_MARKET_THEME['border']
         )
     )
     
-    return fig
+    return _lock_graph_navigation(fig)
 
 
 @callback(
@@ -772,7 +931,7 @@ def update_nor_sek_dkk_graph(date_range):
         y=sek_data['OBS_VALUE'],
         mode='lines',
         name='SEK/NOK',
-        line=dict(color='#38bdf8')
+        line=dict(color=BOND_MARKET_THEME['blue'])
     ))
     
     fig.add_trace(go.Scatter(
@@ -780,7 +939,7 @@ def update_nor_sek_dkk_graph(date_range):
         y=dkk_data['OBS_VALUE'],
         mode='lines',
         name='DKK/NOK',
-        line=dict(color='#34d399')
+        line=dict(color=BOND_MARKET_THEME['green'])
     ))
     
     # Add final observation markers
@@ -788,7 +947,7 @@ def update_nor_sek_dkk_graph(date_range):
         x=[sek_data['TIME_PERIOD'].iloc[-1]],
         y=[sek_data['OBS_VALUE'].iloc[-1]],
         mode='markers',
-        marker=dict(color='#f87171', size=10),
+        marker=dict(color=BOND_MARKET_THEME['red'], size=10),
         showlegend=False
     ))
     
@@ -796,7 +955,7 @@ def update_nor_sek_dkk_graph(date_range):
         x=[dkk_data['TIME_PERIOD'].iloc[-1]],
         y=[dkk_data['OBS_VALUE'].iloc[-1]],
         mode='markers',
-        marker=dict(color='#f87171', size=10),
+        marker=dict(color=BOND_MARKET_THEME['red'], size=10),
         showlegend=False
     ))
     
@@ -821,19 +980,18 @@ def update_nor_sek_dkk_graph(date_range):
         title='SEK/NOK and DKK/NOK Exchange Rates',
         xaxis_title='Date',
         yaxis_title='Exchange Rate',
-        font=dict(family='Arial', size=14, color='#94a3b8'),
+        font=dict(family='Arial', size=14, color=BOND_MARKET_THEME['text_secondary']),
         margin=dict(l=50, r=50, t=100, b=50),
-        paper_bgcolor='rgba(0,0,0,0)',
-        plot_bgcolor='rgba(0,0,0,0)',
+        paper_bgcolor=TRANSPARENT_BACKGROUND,
+        plot_bgcolor=TRANSPARENT_BACKGROUND,
         xaxis=dict(
-            gridcolor='#1e293b',
-            zerolinecolor='#1e293b'
+            gridcolor=BOND_MARKET_THEME['grid'],
+            zerolinecolor=BOND_MARKET_THEME['border']
         ),
         yaxis=dict(
-            gridcolor='#1e293b',
-            zerolinecolor='#1e293b'
+            gridcolor=BOND_MARKET_THEME['grid'],
+            zerolinecolor=BOND_MARKET_THEME['border']
         )
     )
     
-    return fig
-
+    return _lock_graph_navigation(fig)
