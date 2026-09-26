@@ -108,6 +108,45 @@ class EconomyPageFigureTests(unittest.TestCase):
             self.assertNotEqual(graph.style["height"], "100%")
             self.assertEqual(graph.style["minHeight"], "380px")
 
+    def test_all_graph_wrappers_disable_zoom_controls(self):
+        figure = economy.create_empty_figure("Test", "No data")
+        wrapped_graph = economy.graph_wrap(figure).children.children[0]
+        slotted_graph = economy.graph_slot("test-graph").children.children[0]
+
+        for graph in (wrapped_graph, slotted_graph):
+            self.assertFalse(graph.config["displayModeBar"])
+            self.assertFalse(graph.config["scrollZoom"])
+            self.assertFalse(graph.config["doubleClick"])
+            self.assertTrue(graph.config["responsive"])
+
+    def test_economy_figures_lock_both_axes_without_disabling_hover(self):
+        figure = economy.create_graph(
+            economy.CHART_COLORS["green"],
+            "Year-over-year change",
+            "Real GDP Growth",
+            frame(["2026-01-01", "2026-04-01"], [0.01, 0.012]),
+            "value",
+            "%",
+            date(2026, 1, 1),
+            date(2026, 12, 31),
+        )
+        comparison = economy.create_comparison_figure(
+            "Real GDP Growth",
+            "Year-over-year change",
+            {"us": frame(["2026-01-01", "2026-04-01"], [0.01, 0.012])},
+            "%",
+            ["us"],
+        )
+        empty = economy.create_empty_figure("Test", "No data")
+
+        for graph_figure in (figure, comparison, empty):
+            self.assertTrue(graph_figure.layout.xaxis.fixedrange)
+            self.assertTrue(graph_figure.layout.yaxis.fixedrange)
+            self.assertFalse(graph_figure.layout.dragmode)
+
+        self.assertIsNotNone(figure.data[0].hovertemplate)
+        self.assertIsNotNone(comparison.data[0].hovertemplate)
+
     def test_comparison_filters_every_trace_to_selected_ytd_window(self):
         series = {
             "us": frame(

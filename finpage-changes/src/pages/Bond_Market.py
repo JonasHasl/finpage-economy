@@ -60,6 +60,13 @@ BOND_GRAPH_STYLE_2D = {
     'width': 'min(100%, 1000px)',
 }
 
+BOND_GRAPH_CONFIG = {
+    'displayModeBar': False,
+    'responsive': True,
+    'scrollZoom': False,
+    'doubleClick': False,
+}
+
 BOND_MARKET_PAGE_STYLE = {
     'backgroundColor': BOND_MARKET_THEME['page'],
     'color': BOND_MARKET_THEME['text'],
@@ -90,6 +97,27 @@ BOND_MARKET_PAGE_STYLE = {
     '--text-white-color': BOND_MARKET_THEME['text'],
     '--card-color': BOND_MARKET_THEME['surface'],
 }
+
+
+def _lock_graph_navigation(fig, *, is_3d=False):
+    """Keep hover details available while preventing chart navigation."""
+    if is_3d:
+        fig.update_scenes(dragmode=False)
+    else:
+        fig.update_layout(dragmode=False)
+        fig.update_xaxes(fixedrange=True)
+        fig.update_yaxes(fixedrange=True)
+    return fig
+
+
+def bond_graph(graph_id, style):
+    """Create a responsive graph with navigation locked consistently."""
+    return dcc.Graph(
+        id=graph_id,
+        config=BOND_GRAPH_CONFIG.copy(),
+        responsive=True,
+        style=style,
+    )
 
 
 def create_yield_table(data, columns, labels, table_id):
@@ -283,9 +311,9 @@ def serve_layout():
                         inputStyle={'marginRight': '6px', 'marginLeft': '12px'},
                         labelStyle={'display': 'inline-block', 'marginRight': '12px'}
                     ),
-                    dcc.Graph(id='yield-curve-3df', config={'scrollZoom': True}, style=BOND_GRAPH_STYLE_3D),
+                    bond_graph('yield-curve-3df', BOND_GRAPH_STYLE_3D),
                     html.Br(),
-                    dcc.Graph(id='latest-yield-curve-us', style=BOND_GRAPH_STYLE_2D),
+                    bond_graph('latest-yield-curve-us', BOND_GRAPH_STYLE_2D),
                     html.Br(),
                     create_yield_table(table_yields, table_yields.columns, ['Date'], 'us-yield-table')
                 ], style={'textAlign': 'center', 'color': BOND_MARKET_THEME['text_secondary']})
@@ -316,15 +344,15 @@ def serve_layout():
                         inputStyle={'marginRight': '6px', 'marginLeft': '12px'},
                         labelStyle={'display': 'inline-block', 'marginRight': '12px'}
                     ),
-                    dcc.Graph(id='nor-yield-curve-3d', config={'scrollZoom': True}, style=BOND_GRAPH_STYLE_3D),
+                    bond_graph('nor-yield-curve-3d', BOND_GRAPH_STYLE_3D),
                     html.Br(),
-                    dcc.Graph(id='latest-yield-curve-nor', style=BOND_GRAPH_STYLE_2D),
+                    bond_graph('latest-yield-curve-nor', BOND_GRAPH_STYLE_2D),
                     html.Br(),
-                    dcc.Graph(id='nor-yield-curve-2d', style=BOND_GRAPH_STYLE_2D),
+                    bond_graph('nor-yield-curve-2d', BOND_GRAPH_STYLE_2D),
                     html.Br(),
-                    dcc.Graph(id='nor-usd-eur-graph', style=BOND_GRAPH_STYLE_2D),
+                    bond_graph('nor-usd-eur-graph', BOND_GRAPH_STYLE_2D),
                     html.Br(),
-                    dcc.Graph(id='nor-sek-dkk-graph', style=BOND_GRAPH_STYLE_2D),
+                    bond_graph('nor-sek-dkk-graph', BOND_GRAPH_STYLE_2D),
                     create_yield_table(nor_yield_monthly_reset, nor_yield_monthly_reset.columns, ['Date'], 'nor-yield-table')
                 ], style={'textAlign': 'center', 'color': BOND_MARKET_THEME['text_secondary']})
             ),
@@ -416,7 +444,7 @@ def update_latest_yield_curve_nor(date_range):
         )
     )
     
-    return fig
+    return _lock_graph_navigation(fig)
 
 
 
@@ -539,7 +567,7 @@ def update_graph(date_range):
         )
         fig.update_layout(showlegend=False)
     
-    return fig
+    return _lock_graph_navigation(fig, is_3d=True)
 
 
 @callback(
@@ -578,7 +606,7 @@ def update_latest_yield_curve_us(date_range):
         )
     )
     
-    return fig
+    return _lock_graph_navigation(fig)
 
 
 
@@ -671,7 +699,7 @@ def update_norwegian_graph(date_range):
     fig.update_layout(showlegend=False)
     fig.update_annotations(font=dict(family="Helvetica", size=12))
     
-    return fig
+    return _lock_graph_navigation(fig, is_3d=True)
 
 @callback(
     Output('nor-yield-curve-2d', 'figure'),
@@ -781,7 +809,7 @@ def update_norwegian_yield_curve_2d(date_range):
         )
     )
     
-    return fig
+    return _lock_graph_navigation(fig)
 
 
 
@@ -874,7 +902,7 @@ def update_nor_usd_eur_graph(date_range):
         )
     )
     
-    return fig
+    return _lock_graph_navigation(fig)
 
 
 @callback(
@@ -966,4 +994,4 @@ def update_nor_sek_dkk_graph(date_range):
         )
     )
     
-    return fig
+    return _lock_graph_navigation(fig)

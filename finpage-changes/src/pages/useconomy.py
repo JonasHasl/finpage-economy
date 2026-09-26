@@ -56,11 +56,26 @@ ECONOMY_GRAPH_STYLE = {
     "minHeight": "380px",
 }
 
+ECONOMY_GRAPH_CONFIG = {
+    "displayModeBar": False,
+    "responsive": True,
+    "scrollZoom": False,
+    "doubleClick": False,
+}
+
 GRID_COLOR = ECONOMY_THEME["grid"]
 AXIS_TEXT_COLOR = ECONOMY_THEME["text_muted"]
 TOOLTIP_BG = ECONOMY_THEME["tooltip_bg"]
 TOOLTIP_TEXT = ECONOMY_THEME["tooltip_text"]
 CARD_COLOR = ECONOMY_THEME["surface"]
+
+
+def _lock_graph_navigation(fig):
+    """Keep hover details available while preventing axis zoom and pan."""
+    fig.update_layout(dragmode=False)
+    fig.update_xaxes(fixedrange=True)
+    fig.update_yaxes(fixedrange=True)
+    return fig
 
 
 def _fill_from_line(hex_color, opacity=0.18):
@@ -160,7 +175,7 @@ def create_empty_figure(title, message):
         height=560,
         margin=dict(l=20, r=20, t=60, b=40),
     )
-    return fig
+    return _lock_graph_navigation(fig)
 
 
 def format_observation_date(value, period=None):
@@ -438,7 +453,7 @@ def create_graph(
             bgcolor=TOOLTIP_BG,
         )
 
-    return fig
+    return _lock_graph_navigation(fig)
 
 
 # --------------------------------------------------------- comparison tab --
@@ -562,7 +577,7 @@ def create_comparison_figure(
             font=dict(size=11, color=CHART_COLORS["amber"]),
         )
 
-    return fig
+    return _lock_graph_navigation(fig)
 
 
 # ------------------------------------------------------- shared UI bits ----
@@ -654,6 +669,7 @@ def graph_wrap(fig, full=True, source=None, graph_id=None):
         "figure": fig,
         "className": "graph economy-graph",
         "responsive": True,
+        "config": ECONOMY_GRAPH_CONFIG.copy(),
         "style": ECONOMY_GRAPH_STYLE.copy(),
     }
     if graph_id is not None:
@@ -674,6 +690,7 @@ def graph_slot(graph_id, source=None, wide=False):
             id=graph_id,
             className=classes,
             responsive=True,
+            config=ECONOMY_GRAPH_CONFIG.copy(),
             style=ECONOMY_GRAPH_STYLE.copy(),
         )
     ]
