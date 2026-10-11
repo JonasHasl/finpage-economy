@@ -120,7 +120,7 @@ layout = html.Div(
                             "0.15s",
                         ),
                         _quick_link(
-                            "/portfolio-daily",
+                            "/algorithm-dashboard",
                             "bars",
                             "Algorithm",
                             "Overview of optimized fundamental stock selection algorithm",

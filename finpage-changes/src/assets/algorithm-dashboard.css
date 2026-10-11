@@ -1,0 +1,650 @@
+/* ============================================================
+   Algorithm dashboard (/algorithm-dashboard) -- one-screen layout
+   Everything is namespaced under .ad-* so other pages are untouched.
+   Uses the shared tokens defined in custom.css (:root).
+   ============================================================ */
+
+/* The shell forces min-height: 100vh on <main>; let the dashboard size it to
+   exactly the space left under the header so the page never scrolls. */
+.app-main:has(.ad-page) {
+  min-height: 0;
+}
+
+.ad-page {
+  --ad-gap: 12px;
+  --ad-radius: 16px;
+  --ad-header-h: 100px;
+
+  height: calc(100vh - var(--ad-header-h));
+  height: calc(100dvh - var(--ad-header-h));
+  display: flex;
+  flex-direction: column;
+  gap: var(--ad-gap);
+  padding: 12px 16px 14px;
+  overflow: hidden;
+  font-family: Arial, sans-serif;
+  font-size: 14px;
+  font-weight: 400;
+  color: var(--text-secondary);
+  background-color: var(--surface-page);
+  background-image:
+    radial-gradient(46rem 30rem at 92% -8%, rgb(3 105 161 / 0.10), transparent 60%),
+    radial-gradient(40rem 28rem at 0% 100%, rgb(109 40 217 / 0.06), transparent 60%);
+}
+
+/* ---- Cards ------------------------------------------------------------- */
+.ad-card {
+  background: var(--surface-raised);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--ad-radius);
+  box-shadow: var(--shadow-soft);
+  min-height: 0;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.ad-card:hover {
+  border-color: rgb(3 105 161 / 0.42);
+  box-shadow: 0 12px 30px -12px rgb(3 105 161 / 0.22);
+}
+
+.ad-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex: 0 0 auto;
+}
+
+.ad-card-title {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ad-chip:empty {
+  display: none;
+}
+
+.ad-chip {
+  flex: 0 0 auto;
+  padding: 2px 9px;
+  border-radius: 999px;
+  background: var(--interactive-soft);
+  color: var(--interactive);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.ad-empty {
+  padding: 28px 12px;
+  text-align: center;
+  color: var(--text-muted);
+}
+
+/* ---- Top bar ----------------------------------------------------------- */
+.ad-topbar {
+  position: relative;
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 10px 18px;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 86% 0%, rgb(3 105 161 / 0.10), transparent 40%),
+    linear-gradient(180deg, var(--surface-raised) 0%, var(--surface-subtle) 100%);
+}
+
+/* Decorative animated trend line (drawn by algorithm-hero.js). */
+.ad-trend {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  opacity: 0.3;
+  pointer-events: none;
+  -webkit-mask-image: linear-gradient(90deg, transparent 20%, #000 75%);
+  mask-image: linear-gradient(90deg, transparent 20%, #000 75%);
+}
+
+.ad-title-block,
+.ad-controls {
+  position: relative;
+  z-index: 1;
+}
+
+.ad-title-block {
+  min-width: 0;
+}
+
+.ad-eyebrow {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 999px;
+  border: 1px solid rgb(3 105 161 / 0.28);
+  background: linear-gradient(135deg, rgb(3 105 161 / 0.10), rgb(109 40 217 / 0.08));
+  color: var(--interactive);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.ad-title {
+  margin: 4px 0 0;
+  font-size: 23px;
+  font-weight: 700;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+  color: var(--text-primary);
+  white-space: nowrap;
+}
+
+.ad-subtitle {
+  min-height: 1.4em;
+  margin-top: 2px;
+  font-size: 12.5px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ad-controls {
+  display: flex;
+  align-items: flex-end;
+  gap: 18px;
+  flex: 0 0 auto;
+}
+
+.ad-control-label {
+  margin-bottom: 4px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+/* Segmented radio group (dcc.RadioItems).  Dash 4 renders each option as
+   <label.dash-options-list-option[.selected]> wrapping a hidden-able input
+   wrapper and a text span, so the pill styling hangs off the label. */
+.ad-seg {
+  display: inline-flex;
+  flex-direction: row;
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 999px;
+  background: var(--surface-subtle);
+}
+
+.ad-seg .dash-options-list-option {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  margin: 0;
+  padding: 5px 13px;
+  border-radius: 999px;
+  cursor: pointer;
+  color: var(--text-secondary);
+  transition: background-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
+}
+
+/* Dash ships a hover/focus-within colour rule with higher specificity than a
+   plain two-class selector, so the pill states are written as .ad-seg.ad-seg
+   to win without !important. */
+.ad-seg.ad-seg .dash-options-list-option:hover,
+.ad-seg.ad-seg .dash-options-list-option:focus-within {
+  color: var(--text-primary);
+  background: rgb(3 105 161 / 0.08);
+}
+
+.ad-seg.ad-seg .dash-options-list-option.selected,
+.ad-seg.ad-seg .dash-options-list-option.selected:hover,
+.ad-seg.ad-seg .dash-options-list-option.selected:focus-within {
+  background: var(--interactive);
+  color: var(--on-accent);
+  box-shadow: 0 2px 8px rgb(3 105 161 / 0.32);
+}
+
+.ad-seg .dash-options-list-option:has(input:focus-visible) {
+  outline: 3px solid rgb(3 105 161 / 0.35);
+  outline-offset: 1px;
+}
+
+.ad-seg .dash-options-list-option-text {
+  padding: 0;
+  margin: 0;
+  font-size: 12.5px;
+  font-weight: 600;
+  line-height: 1.2;
+  color: inherit;
+  white-space: nowrap;
+}
+
+/* Visually hidden radio input: still focusable and announced. */
+.ad-seg .dash-options-list-option-wrapper {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* ---- Loading wrapper ----------------------------------------------------- */
+.ad-loading {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.ad-loading > div {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+/* dcc.Loading keeps an (empty) spinner container in normal flow after the
+   content; it is sized as a percentage of the viewport and would steal that
+   height from the dashboard.  Overlay it instead. */
+.ad-page > .ad-loading > div:last-child {
+  position: absolute;
+  inset: 0;
+  height: auto;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: min(34vh, 260px);
+  pointer-events: none;
+  z-index: 5;
+}
+
+.ad-spinner {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 16px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 999px;
+  background: var(--surface-raised);
+  box-shadow: var(--shadow-soft);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.ad-spinner::before {
+  content: "";
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--interactive);
+  animation: ad-pulse 1s ease-in-out infinite;
+}
+
+@keyframes ad-pulse {
+  0%, 100% { transform: scale(0.7); opacity: 0.5; }
+  50%      { transform: scale(1.15); opacity: 1; }
+}
+
+.ad-table-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 250px;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.ad-body {
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--ad-gap);
+}
+
+/* ---- KPI strip --------------------------------------------------------- */
+.ad-kpis {
+  flex: 0 0 auto;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--ad-gap);
+}
+
+.ad-kpi {
+  --kpi-accent: var(--border-strong);
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 9px 16px 9px 20px;
+  overflow: hidden;
+}
+
+.ad-kpi::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 10px;
+  bottom: 10px;
+  width: 4px;
+  border-radius: 0 4px 4px 0;
+  background: var(--kpi-accent);
+}
+
+.ad-kpi--positive { --kpi-accent: var(--positive); }
+.ad-kpi--negative { --kpi-accent: var(--negative); }
+.ad-kpi--accent   { --kpi-accent: var(--interactive); }
+
+.ad-kpi-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.ad-kpi-value {
+  font-size: clamp(22px, 2vw, 29px);
+  font-weight: 700;
+  line-height: 1.15;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-primary);
+}
+
+.ad-kpi--positive .ad-kpi-value { color: var(--positive); }
+.ad-kpi--negative .ad-kpi-value { color: var(--negative); }
+.ad-kpi--accent .ad-kpi-value   { color: var(--interactive); }
+
+.ad-kpi-sub {
+  font-size: 11.5px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ---- Main grid ----------------------------------------------------------- */
+.ad-main {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1.75fr) minmax(430px, 1fr);
+  gap: var(--ad-gap);
+}
+
+.ad-charts {
+  min-height: 0;
+  display: grid;
+  grid-template-rows: minmax(0, 1.12fr) minmax(0, 1fr);
+  gap: var(--ad-gap);
+}
+
+.ad-chart-card {
+  display: flex;
+  flex-direction: column;
+  padding: 10px 14px 6px;
+  overflow: hidden;
+}
+
+.ad-legend {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.ad-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.ad-swatch {
+  display: inline-block;
+  width: 16px;
+  height: 3px;
+  border-radius: 3px;
+}
+
+.ad-swatch--portfolio { background: var(--interactive); height: 4px; }
+.ad-swatch--benchmark { background: var(--border-strong); }
+
+/* The Graph must fill whatever height the card gives it. */
+.ad-graph {
+  flex: 1 1 auto;
+  min-height: 0;
+  width: 100%;
+}
+
+.ad-graph .js-plotly-plot,
+.ad-graph .plot-container,
+.ad-graph .svg-container {
+  height: 100% !important;
+}
+
+.ad-side {
+  min-height: 0;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: var(--ad-gap);
+}
+
+.ad-composition-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  padding: 10px 12px 12px;
+}
+
+.ad-scroll-hint {
+  display: none;
+  margin-top: -2px;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.ad-table-wrap {
+  min-height: 0;
+  min-width: 0;
+  overflow: auto;
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+}
+
+.ad-table-wrap .dash-spreadsheet-container,
+.ad-table-wrap .dash-spreadsheet-inner {
+  border-radius: 12px;
+}
+
+.ad-table-wrap a {
+  color: var(--interactive);
+  font-weight: 600;
+}
+
+/* Markdown cells wrap their text in <p>, which inherits Bootstrap's bottom
+   margin and would otherwise double the row height. */
+.ad-table-wrap .dash-cell p,
+.ad-table-wrap .dash-cell-value p,
+.ad-table-wrap td p {
+  margin: 0;
+}
+
+.ad-about-card {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  gap: 6px;
+  padding: 12px 16px;
+  overflow: auto;
+}
+
+.ad-about-text {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--text-secondary);
+}
+
+.ad-about-list {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--text-muted);
+}
+
+.ad-asof {
+  margin-top: auto;
+  padding-top: 6px;
+  border-top: 1px solid var(--grid-color);
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+/* ---- Tighter desktops (short laptop screens) ---------------------------- */
+@media (max-height: 820px) and (min-width: 1101px) {
+  .ad-page {
+    --ad-gap: 10px;
+    padding: 10px 14px 12px;
+  }
+
+  .ad-topbar {
+    padding: 8px 16px;
+  }
+
+  .ad-title {
+    font-size: 20px;
+  }
+
+  .ad-kpi {
+    padding-top: 7px;
+    padding-bottom: 7px;
+  }
+
+  .ad-kpi-value {
+    font-size: clamp(20px, 1.8vw, 25px);
+  }
+
+  .ad-about-list {
+    display: none;
+  }
+
+  .ad-table-wrap .dash-spreadsheet-container td.dash-cell,
+  .ad-table-wrap .dash-spreadsheet-container th.dash-header {
+    padding-top: 6px !important;
+    padding-bottom: 6px !important;
+  }
+
+  .ad-about-card {
+    padding: 10px 14px;
+  }
+
+  .ad-about-text {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 3;
+    overflow: hidden;
+  }
+}
+
+@media (max-height: 760px) and (min-width: 1101px) {
+  .ad-about-text {
+    -webkit-line-clamp: 2;
+  }
+}
+
+/* ---- Not a desktop-sized viewport: fall back to a normal scrolling page --- */
+@media (max-width: 1100px), (max-height: 600px) {
+  .ad-page {
+    height: auto;
+    overflow: visible;
+  }
+
+  .ad-topbar {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .ad-title,
+  .ad-subtitle {
+    white-space: normal;
+  }
+
+  .ad-controls {
+    flex-wrap: wrap;
+  }
+
+  .ad-loading,
+  .ad-body {
+    display: block;
+    height: auto;
+  }
+
+  .ad-kpis {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    margin-bottom: var(--ad-gap);
+  }
+
+  .ad-main,
+  .ad-charts,
+  .ad-side {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .ad-chart-card {
+    height: 340px;
+  }
+
+  .ad-card-head {
+    flex-wrap: wrap;
+    row-gap: 4px;
+  }
+
+  .ad-card-title {
+    white-space: normal;
+  }
+}
+
+@media (max-width: 576px) {
+  .ad-kpis {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .ad-scroll-hint {
+    display: block;
+  }
+
+  .ad-controls {
+    gap: 12px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ad-card,
+  .ad-seg .dash-options-list-option {
+    transition: none;
+  }
+
+  .ad-spinner::before {
+    animation: none;
+  }
+}
