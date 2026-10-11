@@ -1,0 +1,937 @@
+/* ============================================================
+   Algorithm dashboard (/algorithm-dashboard)
+
+   One page, two layouts, switched by a class on .ad-page:
+     .ad-page--dashboard   one-screen desktop dashboard (the default)
+     .ad-page--scroll      long page with large charts
+
+   The base rules below ARE the scrolling layout, so narrow or short
+   viewports -- where the dashboard cannot fit -- get it automatically.
+   The dashboard rules only apply inside the last desktop media query.
+
+   Everything is namespaced under .ad-* so other pages are untouched.
+   Colour tokens come from custom.css (:root).
+   ============================================================ */
+
+/* ---- Page shell ------------------------------------------------------------ */
+.ad-page {
+  --ad-gap: 16px;
+  --ad-radius: 16px;
+  --ad-header-h: 100px;
+  --ad-view-w: 176px;
+
+  min-height: calc(100vh - var(--ad-header-h));
+  min-height: calc(100dvh - var(--ad-header-h));
+  padding: 16px 16px 40px;
+  font-family: Arial, sans-serif;
+  font-size: 14px;
+  font-weight: 400;
+  color: var(--text-secondary);
+  background-color: var(--surface-page);
+  background-image:
+    radial-gradient(46rem 30rem at 92% -8%, rgb(3 105 161 / 0.10), transparent 60%),
+    radial-gradient(40rem 28rem at 0% 100%, rgb(109 40 217 / 0.06), transparent 60%);
+}
+
+/* Every block is a direct flex item of .ad-body in the scrolling layout, so the
+   wrappers that only exist to build the dashboard grid are flattened and the
+   blocks are ordered explicitly: hero, history chart, controls, window chart,
+   KPIs, composition, about. */
+.ad-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ad-gap);
+  width: 100%;
+  max-width: 1240px;
+  margin: 0 auto;
+}
+
+.ad-main,
+.ad-charts,
+.ad-side {
+  display: contents;
+}
+
+.ad-title-block { order: 0; }
+.ad-chart-card--full { order: 1; }
+.ad-controls { order: 2; }
+.ad-chart-card--period { order: 3; }
+.ad-kpis { order: 4; }
+.ad-composition-card { order: 5; }
+.ad-about-card { order: 6; }
+
+/* ---- Cards ----------------------------------------------------------------- */
+.ad-card {
+  background: var(--surface-raised);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--ad-radius);
+  box-shadow: var(--shadow-soft);
+  min-height: 0;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.ad-card:hover {
+  border-color: rgb(3 105 161 / 0.42);
+  box-shadow: 0 12px 30px -12px rgb(3 105 161 / 0.22);
+}
+
+.ad-card-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px 12px;
+  flex: 0 0 auto;
+}
+
+.ad-card-title {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.ad-chip:empty {
+  display: none;
+}
+
+.ad-chip {
+  flex: 0 0 auto;
+  padding: 2px 9px;
+  border-radius: 999px;
+  background: var(--interactive-soft);
+  color: var(--interactive);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.ad-empty {
+  padding: 28px 12px;
+  text-align: center;
+  color: var(--text-muted);
+}
+
+/* ---- Hero ------------------------------------------------------------------ */
+/* .ad-topbar is the dashboard's header card.  In the scrolling layout it is
+   transparent to layout and .ad-title-block becomes the hero card instead. */
+.ad-topbar {
+  display: contents;
+}
+
+.ad-title-block {
+  position: relative;
+  min-width: 0;
+  overflow: hidden;
+  padding: 24px 18px 30px;
+  text-align: center;
+  border: 1px solid var(--border-subtle);
+  border-radius: calc(var(--ad-radius) + 4px);
+  box-shadow: var(--shadow-soft);
+  background:
+    radial-gradient(circle at 86% 0%, rgb(3 105 161 / 0.10), transparent 40%),
+    linear-gradient(180deg, var(--surface-raised) 0%, var(--surface-subtle) 100%);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.ad-title-block:hover {
+  border-color: rgb(3 105 161 / 0.42);
+  box-shadow: 0 12px 30px -12px rgb(3 105 161 / 0.22);
+}
+
+/* Keeps the copy above the decorative canvas. */
+.ad-title-text {
+  position: relative;
+  z-index: 1;
+}
+
+/* Decorative animated trend line (drawn by algorithm-hero.js). */
+.ad-trend {
+  position: absolute;
+  left: 4%;
+  right: 4%;
+  bottom: 0;
+  width: 92%;
+  height: 42%;
+  display: block;
+  opacity: 0.42;
+  pointer-events: none;
+  -webkit-mask-image: linear-gradient(to top, #000 18%, rgba(0, 0, 0, 0.35) 55%, transparent);
+  mask-image: linear-gradient(to top, #000 18%, rgba(0, 0, 0, 0.35) 55%, transparent);
+}
+
+.ad-eyebrow {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 999px;
+  border: 1px solid rgb(3 105 161 / 0.28);
+  background: linear-gradient(135deg, rgb(3 105 161 / 0.10), rgb(109 40 217 / 0.08));
+  color: var(--interactive);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.ad-title {
+  margin: 10px 0 0;
+  font-size: clamp(25px, 6vw, 34px);
+  font-weight: 700;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+  color: var(--text-primary);
+}
+
+/* The long description replaces the one-line subtitle in the hero. */
+.ad-subtitle {
+  display: none;
+  min-height: 1.4em;
+  margin-top: 2px;
+  font-size: 12.5px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ad-hero-description {
+  max-width: 820px;
+  margin: 12px auto 0;
+  font-size: 14px;
+  line-height: 1.65;
+  color: var(--text-secondary);
+}
+
+/* Layout switch -- only offered where the dashboard can actually fit. */
+.ad-view-control {
+  display: none;
+  position: absolute;
+  top: 12px;
+  right: 14px;
+  z-index: 2;
+  width: var(--ad-view-w);
+  text-align: left;
+}
+
+.ad-view-control .ad-seg {
+  display: flex;
+  width: 100%;
+}
+
+.ad-view-control .ad-seg > label {
+  flex: 1 1 0;
+  justify-content: center;
+}
+
+/* ---- Controls --------------------------------------------------------------- */
+.ad-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 14px 22px;
+  padding: 14px 16px 16px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--ad-radius);
+  background: linear-gradient(180deg, var(--surface-raised) 0%, var(--surface-subtle) 100%);
+  box-shadow: var(--shadow-soft);
+}
+
+.ad-control-label {
+  margin-bottom: 4px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+/* Segmented radio group (dcc.RadioItems).  Production runs Dash 3
+   (<label><input type="radio">text</label>) while newer Dash 4 renders
+   <label.dash-options-list-option[.selected]> around an input wrapper and a
+   text span.  The only structure both share is "options are <label> children of
+   the group, and the chosen one contains a checked input", so that is what the
+   pill styling hangs off. */
+.ad-seg {
+  display: inline-flex;
+  flex-direction: row;
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 999px;
+  background: var(--surface-subtle);
+}
+
+/* !important on display: Dash 3 writes an inline `display: block` on labels. */
+.ad-seg > label {
+  position: relative;
+  display: inline-flex !important;
+  align-items: center;
+  margin: 0;
+  padding: 5px 13px;
+  border-radius: 999px;
+  cursor: pointer;
+  font-size: 12.5px;
+  font-weight: 600;
+  line-height: 1.2;
+  white-space: nowrap;
+  color: var(--text-secondary);
+  transition: background-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
+}
+
+/* Dash 4 ships a hover/focus-within colour rule with higher specificity than a
+   plain selector, so the pill states repeat the class to win without
+   !important. */
+.ad-seg.ad-seg.ad-seg > label:hover,
+.ad-seg.ad-seg.ad-seg > label:focus-within {
+  color: var(--text-primary);
+  background: rgb(3 105 161 / 0.08);
+}
+
+.ad-seg.ad-seg.ad-seg > label:has(input:checked),
+.ad-seg.ad-seg.ad-seg > label:has(input:checked):hover,
+.ad-seg.ad-seg.ad-seg > label:has(input:checked):focus-within {
+  background: var(--interactive);
+  color: var(--on-accent);
+  box-shadow: 0 2px 8px rgb(3 105 161 / 0.32);
+}
+
+.ad-seg > label:has(input:focus-visible) {
+  outline: 3px solid rgb(3 105 161 / 0.35);
+  outline-offset: 1px;
+}
+
+/* Dash 4 wraps the option text in a span of its own. */
+.ad-seg .dash-options-list-option-text {
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  color: inherit;
+  white-space: nowrap;
+}
+
+/* The native radio is visually hidden but stays focusable and announced. */
+.ad-seg input[type="radio"],
+.ad-seg .dash-options-list-option-wrapper {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: 0;
+  overflow: hidden;
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* ---- Loading ----------------------------------------------------------------- */
+/* dcc.Loading keeps an (empty) spinner container in normal flow after the
+   content; it is sized as a percentage of the viewport and would steal that
+   height.  Pin it to the viewport instead so the label stays visible however
+   far down the page the controls were used. */
+.ad-page > .ad-loading > div:last-child {
+  position: fixed;
+  inset: 0;
+  height: auto;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: calc(var(--ad-header-h) + 110px);
+  pointer-events: none;
+  z-index: 5;
+}
+
+.ad-spinner {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 16px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 999px;
+  background: var(--surface-raised);
+  box-shadow: var(--shadow-soft);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.ad-spinner::before {
+  content: "";
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--interactive);
+  animation: ad-pulse 1s ease-in-out infinite;
+}
+
+@keyframes ad-pulse {
+  0%, 100% { transform: scale(0.7); opacity: 0.5; }
+  50%      { transform: scale(1.15); opacity: 1; }
+}
+
+.ad-table-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 250px;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+/* ---- KPI strip --------------------------------------------------------------- */
+.ad-kpis {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--ad-gap);
+}
+
+.ad-kpi {
+  --kpi-accent: var(--border-strong);
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 12px 16px 12px 22px;
+  overflow: hidden;
+}
+
+.ad-kpi::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 10px;
+  bottom: 10px;
+  width: 4px;
+  border-radius: 0 4px 4px 0;
+  background: var(--kpi-accent);
+}
+
+.ad-kpi--positive { --kpi-accent: var(--positive); }
+.ad-kpi--negative { --kpi-accent: var(--negative); }
+.ad-kpi--accent   { --kpi-accent: var(--interactive); }
+
+.ad-kpi-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.ad-kpi-value {
+  font-size: clamp(22px, 6vw, 28px);
+  font-weight: 700;
+  line-height: 1.15;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-primary);
+}
+
+.ad-kpi--positive .ad-kpi-value { color: var(--positive); }
+.ad-kpi--negative .ad-kpi-value { color: var(--negative); }
+.ad-kpi--accent .ad-kpi-value   { color: var(--interactive); }
+
+.ad-kpi-sub {
+  font-size: 11.5px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Longer explanation; only the scrolling layout has room for it. */
+.ad-kpi-note {
+  display: none;
+}
+
+/* ---- Charts -------------------------------------------------------------------- */
+.ad-chart-card {
+  display: flex;
+  flex-direction: column;
+  padding: 12px 14px 6px;
+  overflow: hidden;
+}
+
+.ad-legend {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.ad-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.ad-swatch {
+  display: inline-block;
+  width: 16px;
+  height: 3px;
+  border-radius: 3px;
+}
+
+.ad-swatch--portfolio { background: var(--interactive); height: 4px; }
+.ad-swatch--benchmark { background: var(--border-strong); }
+
+/* dcc.Graph(responsive=True) forces an inline `height: 100%`, which collapses
+   inside an auto-height card; each layout therefore states its height with
+   !important (the dashboard simply restates the 100% its flex/grid cell needs). */
+.ad-graph {
+  width: 100%;
+  min-width: 0;
+  height: 305px !important;
+}
+
+.ad-graph .js-plotly-plot,
+.ad-graph .plot-container,
+.ad-graph .svg-container {
+  height: 100% !important;
+}
+
+/* ---- Composition + about ---------------------------------------------------------- */
+.ad-composition-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  padding: 12px;
+}
+
+.ad-scroll-hint {
+  display: none;
+  margin-top: -2px;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.ad-table-wrap {
+  min-height: 0;
+  min-width: 0;
+  overflow: auto;
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+}
+
+.ad-table-wrap .dash-spreadsheet-container,
+.ad-table-wrap .dash-spreadsheet-inner {
+  border-radius: 12px;
+}
+
+.ad-table-wrap a {
+  color: var(--interactive);
+  font-weight: 600;
+}
+
+/* Markdown cells wrap their text in <p>, which inherits Bootstrap's bottom
+   margin and would otherwise double the row height. */
+.ad-table-wrap .dash-cell p,
+.ad-table-wrap .dash-cell-value p,
+.ad-table-wrap td p {
+  margin: 0;
+}
+
+.ad-about-card {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  gap: 6px;
+  padding: 12px 16px;
+  overflow: auto;
+}
+
+/* The scrolling layout shows the description in the hero instead. */
+.ad-about-text {
+  display: none;
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--text-secondary);
+}
+
+.ad-about-list {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--text-muted);
+}
+
+.ad-asof {
+  margin-top: auto;
+  padding-top: 6px;
+  border-top: 1px solid var(--grid-color);
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+/* ============================================================
+   Scrolling layout on a desktop-width screen: large charts
+   ============================================================ */
+@media (min-width: 1101px) {
+  .ad-page {
+    padding: 20px 20px 56px;
+  }
+
+  .ad-title-block {
+    padding: 34px 40px 44px;
+  }
+
+  .ad-title {
+    margin-top: 12px;
+    font-size: 38px;
+  }
+
+  .ad-hero-description {
+    font-size: 15.5px;
+  }
+
+  .ad-controls {
+    gap: 14px 32px;
+    padding: 18px 24px 20px;
+  }
+
+  .ad-kpis {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .ad-kpi {
+    padding: 16px 20px 16px 26px;
+  }
+
+  .ad-kpi-value {
+    font-size: 32px;
+  }
+
+  .ad-kpi-note {
+    display: block;
+    margin-top: 8px;
+    font-size: 12px;
+    line-height: 1.5;
+    color: var(--text-muted);
+  }
+
+  .ad-chart-card {
+    padding: 16px 20px 10px;
+  }
+
+  .ad-card-title {
+    font-size: 12px;
+  }
+
+  .ad-legend {
+    font-size: 12.5px;
+  }
+
+  .ad-graph {
+    height: 640px !important;
+  }
+
+  .ad-composition-card {
+    gap: 12px;
+    padding: 16px 20px 20px;
+  }
+
+  .ad-about-card {
+    padding: 14px 20px;
+  }
+
+  .ad-page--scroll .ad-table-wrap .dash-spreadsheet-container td.dash-cell,
+  .ad-page--scroll .ad-table-wrap .dash-spreadsheet-container th.dash-header {
+    padding: 12px 14px !important;
+    font-size: 13.5px !important;
+  }
+}
+
+/* ============================================================
+   Dashboard layout: everything on one screen, no page scroll
+   ============================================================ */
+@media (min-width: 1180px) and (min-height: 601px) {
+  /* The shell forces min-height: 100vh on <main>; let the dashboard size it to
+     exactly the space left under the header so the page never scrolls. */
+  .app-main:has(.ad-page--dashboard) {
+    min-height: 0;
+  }
+
+  .ad-view-control {
+    display: block;
+  }
+
+  .ad-page--dashboard {
+    --ad-gap: 12px;
+
+    height: calc(100vh - var(--ad-header-h));
+    height: calc(100dvh - var(--ad-header-h));
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    padding: 12px 16px 14px;
+    overflow: hidden;
+  }
+
+  .ad-page--dashboard .ad-loading {
+    flex: 1 1 auto;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .ad-page--dashboard .ad-loading > div {
+    flex: 1 1 auto;
+    min-height: 0;
+  }
+
+  .ad-page--dashboard .ad-body {
+    height: 100%;
+    min-height: 0;
+    max-width: none;
+    margin: 0;
+  }
+
+  /* Header card: title on the left, controls and layout switch on the right. */
+  .ad-page--dashboard .ad-topbar {
+    position: relative;
+    order: 0;
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 20px;
+    padding: 10px 18px;
+    overflow: hidden;
+    background:
+      radial-gradient(circle at 86% 0%, rgb(3 105 161 / 0.10), transparent 40%),
+      linear-gradient(180deg, var(--surface-raised) 0%, var(--surface-subtle) 100%);
+  }
+
+  .ad-page--dashboard .ad-title-block {
+    position: static;
+    flex: 1 1 auto;
+    padding: 0;
+    overflow: visible;
+    text-align: left;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+    background: none;
+  }
+
+  .ad-page--dashboard .ad-title-block:hover {
+    border: 0;
+    box-shadow: none;
+  }
+
+  .ad-page--dashboard .ad-title {
+    margin: 4px 0 0;
+    font-size: 23px;
+    white-space: nowrap;
+  }
+
+  .ad-page--dashboard .ad-subtitle {
+    display: block;
+  }
+
+  .ad-page--dashboard .ad-hero-description {
+    display: none;
+  }
+
+  .ad-page--dashboard .ad-trend {
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    opacity: 0.3;
+    -webkit-mask-image: linear-gradient(90deg, transparent 20%, #000 75%);
+    mask-image: linear-gradient(90deg, transparent 20%, #000 75%);
+  }
+
+  .ad-page--dashboard .ad-view-control {
+    top: 50%;
+    right: 18px;
+    transform: translateY(-50%);
+  }
+
+  .ad-page--dashboard .ad-controls {
+    position: relative;
+    z-index: 1;
+    order: 0;
+    flex: 0 0 auto;
+    flex-wrap: nowrap;
+    justify-content: flex-start;
+    gap: 18px;
+    margin-right: calc(var(--ad-view-w) + 22px);
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+    background: none;
+  }
+
+  .ad-page--dashboard .ad-kpis {
+    order: 0;
+    flex: 0 0 auto;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .ad-page--dashboard .ad-kpi {
+    padding: 9px 16px 9px 20px;
+  }
+
+  .ad-page--dashboard .ad-kpi-value {
+    font-size: clamp(22px, 2vw, 29px);
+  }
+
+  .ad-page--dashboard .ad-kpi-note {
+    display: none;
+  }
+
+  /* Main area: two stacked charts on the left, composition + about on the right. */
+  .ad-page--dashboard .ad-main {
+    flex: 1 1 auto;
+    min-height: 0;
+    display: grid;
+    grid-template-columns: minmax(0, 1.75fr) minmax(430px, 1fr);
+    gap: var(--ad-gap);
+  }
+
+  .ad-page--dashboard .ad-charts {
+    min-height: 0;
+    display: grid;
+    grid-template-rows: minmax(0, 1.12fr) minmax(0, 1fr);
+    gap: var(--ad-gap);
+  }
+
+  .ad-page--dashboard .ad-side {
+    min-height: 0;
+    min-width: 0;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr);
+    gap: var(--ad-gap);
+  }
+
+  .ad-page--dashboard .ad-chart-card,
+  .ad-page--dashboard .ad-composition-card,
+  .ad-page--dashboard .ad-about-card {
+    order: 0;
+  }
+
+  .ad-page--dashboard .ad-chart-card {
+    padding: 10px 14px 6px;
+  }
+
+  .ad-page--dashboard .ad-card-head {
+    flex-wrap: nowrap;
+  }
+
+  .ad-page--dashboard .ad-card-title {
+    font-size: 11px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .ad-page--dashboard .ad-legend {
+    font-size: 11.5px;
+  }
+
+  /* The graph must fill whatever height its card gives it. */
+  .ad-page--dashboard .ad-graph {
+    flex: 1 1 auto;
+    min-height: 0;
+    height: 100% !important;
+  }
+
+  .ad-page--dashboard .ad-composition-card {
+    gap: 8px;
+    padding: 10px 12px 12px;
+  }
+
+  .ad-page--dashboard .ad-about-card {
+    padding: 12px 16px;
+  }
+
+  .ad-page--dashboard .ad-about-text {
+    display: block;
+  }
+}
+
+/* Dashboard on a short laptop screen. */
+@media (min-width: 1180px) and (min-height: 601px) and (max-height: 820px) {
+  .ad-page--dashboard {
+    --ad-gap: 10px;
+    padding: 10px 14px 12px;
+  }
+
+  .ad-page--dashboard .ad-topbar {
+    padding: 8px 16px;
+  }
+
+  .ad-page--dashboard .ad-title {
+    font-size: 20px;
+  }
+
+  .ad-page--dashboard .ad-kpi {
+    padding-top: 7px;
+    padding-bottom: 7px;
+  }
+
+  .ad-page--dashboard .ad-kpi-value {
+    font-size: clamp(20px, 1.8vw, 25px);
+  }
+
+  .ad-page--dashboard .ad-about-list {
+    display: none;
+  }
+
+  .ad-page--dashboard .ad-table-wrap .dash-spreadsheet-container td.dash-cell,
+  .ad-page--dashboard .ad-table-wrap .dash-spreadsheet-container th.dash-header {
+    padding-top: 6px !important;
+    padding-bottom: 6px !important;
+  }
+
+  .ad-page--dashboard .ad-about-card {
+    padding: 10px 14px;
+  }
+
+  .ad-page--dashboard .ad-about-text {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 3;
+    overflow: hidden;
+  }
+}
+
+@media (min-width: 1180px) and (min-height: 601px) and (max-height: 760px) {
+  .ad-page--dashboard .ad-about-text {
+    -webkit-line-clamp: 2;
+  }
+}
+
+/* ---- Phones ------------------------------------------------------------------- */
+@media (max-width: 576px) {
+  .ad-kpis {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .ad-scroll-hint {
+    display: block;
+  }
+
+  .ad-controls {
+    gap: 12px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ad-card,
+  .ad-title-block,
+  .ad-seg > label {
+    transition: none;
+  }
+
+  .ad-spinner::before {
+    animation: none;
+  }
+}

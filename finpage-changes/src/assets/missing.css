@@ -3,8 +3,8 @@
     font-size: 3rem;
     font-weight: 700;
     line-height: 1;
-    color: #000;
-    text-shadow: 0 1px 0 #fff;
+    color: var(--text-primary);
+    text-shadow: 0 1px 0 var(--surface-raised);
 
     cursor: pointer;
 }
@@ -12,8 +12,8 @@
 .button-style {
   display: inline-block;
   padding: 10px 20px;
-  background-color: #0074D9;
-  color: #FFFFFF;
+  background-color: var(--interactive);
+  color: var(--on-accent);
   text-align: center;
   font-size: 16px;
   font-weight: bold;
@@ -26,8 +26,8 @@
 }
 
 .button-style:hover {
-  background-color: #001F3F;
-  border-color: #001F3F;
+  background-color: #024f7d;
+  border-color: #024f7d;
   border: 5px;
 }
 
@@ -56,12 +56,13 @@
     display: flex;
     flex-direction: column;
     width: 100%;
-    background-color: #fff;
+    background-color: var(--surface-raised);
     background-clip: padding-box;
-    border: 1px solid rgba(0,0,0,.2);
+    border: 1px solid var(--border-subtle);
     border-radius: .3rem;
     outline: 0;
-    box-shadow: 0 0.5rem 1rem rgba(0,0,0,.15);
+    box-shadow: 0 18px 50px rgba(16, 42, 67, 0.16);
+    color: var(--text-primary);
 }
 
 .modal-header {
@@ -69,7 +70,7 @@
     align-items: center;
     justify-content: space-between;
     padding: 1rem;
-    border-bottom: 1px solid #e9ecef;
+    border-bottom: 1px solid var(--border-subtle);
 }
 
 .modal-title {
@@ -92,7 +93,7 @@
     align-items: center;
     justify-content: flex-end;
     padding: 1rem;
-    border-top: 1px solid #e9ecef;
+    border-top: 1px solid var(--border-subtle);
 }
 
 a {
@@ -113,7 +114,7 @@ a::before {
   height: 2px;
   bottom: -2px; /* Adjust this value to control the position of the underscore */
   left: 0;
-  background-color: #3c6f9d;
+  background-color: var(--interactive);
   transition: width 0.3s ease-in-out;
 }
 
@@ -149,7 +150,7 @@ a:hover::before {
   border-radius: 8px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
   margin-bottom: 1rem;
-  background-color: #ffffff;
+  background-color: var(--surface-raised);
   transition: transform 0.2s, box-shadow 0.2s;
   width: 200px;
 }
@@ -166,6 +167,6 @@ a:hover::before {
 .my-card-container .card-text {
   font-size: 1.25rem;
   font-weight: 500;
-  color: #2c3e50;
+  color: var(--text-primary);
   text-align: center;
 }

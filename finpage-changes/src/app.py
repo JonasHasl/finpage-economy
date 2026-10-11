@@ -82,7 +82,7 @@ nav_links = dbc.Nav(
         dbc.NavItem(
             dbc.NavLink(
                 "Algorithm",
-                href="/portfolio-daily",
+                href="/algorithm-dashboard",
                 className="top-nav-link",
                 style=NAV_LINK_STYLE,
                 active="exact",

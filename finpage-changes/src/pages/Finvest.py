@@ -14,30 +14,31 @@ from dash import dash_table as dt
 import dash
 
 from dash import dcc, callback
+from theme import LIGHT_THEME
 
 dash.register_page(__name__, path='/Finvest')
 
 
 colors = {
-    'background': '#D6E4EA',
-    'text': '#718BA5',
-    'accent': '#004172',
-    'text-white':'white',
-    'content':'#EDF3F4'
+    'background': LIGHT_THEME['page'],
+    'text': LIGHT_THEME['text_secondary'],
+    'accent': LIGHT_THEME['blue'],
+    'text-white': LIGHT_THEME['surface'],
+    'content': LIGHT_THEME['surface']
 }
 
 plt.style.use('ggplot')
 COLORS = {
-    'background': '#f4f4f4',
-    'banner': '#0a213b',
-    'banner2': '#1e3a5a',
-    'content': '#859db3',
-    'text': '#859db3',
-    'accent': '#004172',
-    'border': '#bed6eb',
-    'header': '#7a7a7a',
-    'element': '#1f8c44',
-    'text-white': 'white',
+    'background': LIGHT_THEME['page'],
+    'banner': LIGHT_THEME['surface'],
+    'banner2': LIGHT_THEME['surface_subtle'],
+    'content': LIGHT_THEME['surface'],
+    'text': LIGHT_THEME['text_secondary'],
+    'accent': LIGHT_THEME['blue'],
+    'border': LIGHT_THEME['border'],
+    'header': LIGHT_THEME['text_muted'],
+    'element': LIGHT_THEME['green'],
+    'text-white': LIGHT_THEME['surface'],
 }
 
 
@@ -290,7 +291,7 @@ card1and = html.Div([
 
                                                   html.H1("Strategy", style={}, className='headerfinvest'),
                                                   html.H1("Finder", style={
-                                                           'color': 'rgba(61, 181, 105)'}, className='headerfinvest'),
+                                                           'color': '#047857'}, className='headerfinvest'),
                                           html.Img(src=('assets/favicon.jpg'),
                                                             style={'border-radius': '200px', 'width': '20%', 'margin':'15px'},
                                                             ),
@@ -1453,8 +1454,6 @@ def update_click_output(button_click, close_click):
             return {"display": "block"}
 
     return {"display": "none"}
-
-
 
 
 
