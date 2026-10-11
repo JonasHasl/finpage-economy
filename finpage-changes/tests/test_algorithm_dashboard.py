@@ -109,7 +109,27 @@ class DashboardWiringTests(unittest.TestCase):
         input_ids = {item["id"] for item in entry["inputs"] + entry["state"]}
 
         self.assertEqual((output_ids | input_ids) - layout_ids, set())
-        self.assertEqual(len(entry["output"].strip(".").split("...")), 10)
+        self.assertEqual(len(entry["output"].strip(".").split("...")), 11)
+
+    def test_layout_switch_is_wired_client_side_to_the_page_root(self):
+        from dash import _callback
+
+        layout_ids = {
+            component.id
+            for component in walk_components(dashboard.layout)
+            if isinstance(getattr(component, "id", None), str)
+        }
+        entry = next(
+            item for item in _callback.GLOBAL_CALLBACK_LIST
+            if item["output"] == "ad-page.className"
+        )
+
+        self.assertEqual(
+            entry["clientside_function"],
+            {"namespace": "algorithm_dashboard", "function_name": "set_layout"},
+        )
+        self.assertEqual([item["id"] for item in entry["inputs"]], ["ad-view"])
+        self.assertTrue({"ad-page", "ad-view"} <= layout_ids)
 
     def test_stylesheet_only_uses_defined_custom_properties(self):
         css = (SRC / "assets" / "algorithm-dashboard.css").read_text(encoding="utf-8")
@@ -118,6 +138,103 @@ class DashboardWiringTests(unittest.TestCase):
         used = set(re.findall(r"var\((--[\w-]+)", css))
 
         self.assertEqual(used - defined, set())
+
+
+class LayoutSwitchTests(unittest.TestCase):
+    SCRIPT = SRC / "assets" / "algorithm-dashboard.js"
+    STYLESHEET = SRC / "assets" / "algorithm-dashboard.css"
+
+    @staticmethod
+    def find(component_id):
+        return next(
+            component
+            for component in walk_components(dashboard.layout)
+            if getattr(component, "id", None) == component_id
+        )
+
+    @classmethod
+    def stylesheet(cls):
+        """The stylesheet without comments, so selectors can be searched safely."""
+        css = cls.STYLESHEET.read_text(encoding="utf-8")
+        return re.sub(r"/\*.*?\*/", "", css, flags=re.S)
+
+    def test_page_starts_in_the_dashboard_layout(self):
+        root = dashboard.layout
+
+        self.assertEqual(root.id, "ad-page")
+        self.assertEqual(root.className, "ad-page ad-page--dashboard")
+        self.assertEqual(dashboard.DEFAULT_VIEW, "dashboard")
+
+    def test_layout_radio_offers_dashboard_and_scroll_and_remembers_the_choice(self):
+        radio = self.find("ad-view")
+
+        self.assertEqual(radio.value, "dashboard")
+        self.assertEqual([option["value"] for option in radio.options], ["dashboard", "scroll"])
+        self.assertTrue(radio.persistence)
+        self.assertEqual(radio.persistence_type, "local")
+
+    def test_script_maps_the_choice_to_a_page_class_and_defaults_to_dashboard(self):
+        script = self.SCRIPT.read_text(encoding="utf-8")
+
+        self.assertIn("window.dash_clientside.algorithm_dashboard", script)
+        self.assertIn("set_layout", script)
+        self.assertIn('view === "scroll" ? "scroll" : "dashboard"', script)
+        self.assertIn('"ad-page ad-page--" + mode', script)
+        self.assertIn('new Event("resize")', script)
+
+    def test_scrolling_layout_follows_the_graph_controls_results_order(self):
+        # Only the base rules (before the first @media) define the scrolling order.
+        css = self.stylesheet()
+        base = css[: css.index("@media")]
+        order = {
+            name: int(value)
+            for name, value in re.findall(r"\.(ad-[\w-]+)\s*\{\s*order:\s*(\d+);", base)
+        }
+        sequence = [
+            "ad-title-block",
+            "ad-chart-card--full",
+            "ad-controls",
+            "ad-chart-card--period",
+            "ad-kpis",
+            "ad-composition-card",
+            "ad-about-card",
+        ]
+
+        self.assertEqual([order[name] for name in sequence], sorted(order[name] for name in sequence))
+        self.assertEqual(len({order[name] for name in sequence}), len(sequence))
+
+    def test_dashboard_rules_only_apply_on_screens_that_can_hold_the_dashboard(self):
+        css = self.stylesheet()
+        desktop_query = css.index("@media (min-width: 1180px) and (min-height: 601px)")
+
+        # Base rules are the scrolling layout, so narrow/short screens get it.
+        self.assertGreater(css.index(".ad-page--dashboard"), desktop_query)
+        self.assertGreater(css.index(".ad-view-control {\n    display: block;"), desktop_query)
+        self.assertIn(".ad-view-control {\n  display: none;", css[:desktop_query])
+
+    def test_hero_and_about_both_receive_the_description(self):
+        bundle = UpdateDashboardTests.synthetic_bundle()
+        with patch.object(dashboard, "get_dashboard_data", return_value=bundle):
+            ok = dashboard.update_dashboard("2015", "testing", "USD")
+        with patch.object(dashboard, "get_dashboard_data", side_effect=RuntimeError("down")):
+            failed = dashboard.update_dashboard("2015", "testing", "USD")
+
+        for outputs in (ok, failed):
+            self.assertEqual(len(outputs), 11)
+            self.assertEqual(outputs[10], outputs[8])
+            self.assertIn("2015-2024", outputs[10])
+
+    def test_kpi_cards_carry_their_explanation_for_the_scrolling_layout(self):
+        card = dashboard._kpi_card("Max drawdown", "34.9%", "Training + testing", tip="Worst loss.")
+        classes = [getattr(child, "className", "") for child in card.children]
+
+        self.assertIn("ad-kpi-note", classes)
+        self.assertEqual(card.children[-1].children, "Worst loss.")
+        self.assertEqual(card.title, "Worst loss.")
+        self.assertNotIn(
+            "ad-kpi-note",
+            [getattr(child, "className", "") for child in dashboard._kpi_card("X").children],
+        )
 
 
 class DashboardCacheTests(unittest.TestCase):
@@ -325,7 +442,7 @@ class UpdateDashboardTests(unittest.TestCase):
         self.assertEqual(values["Testing period return"], f"{expected:+.1%}")
         self.assertEqual(values["ACWI benchmark"], f"{benchmark:+.1%}")
         self.assertEqual(values["Annualized volatility"], "0.0%")
-        self.assertEqual(len(outputs), 10)
+        self.assertEqual(len(outputs), 11)
         self.assertIn("Testing period performance", outputs[4])
         self.assertIn("2020-2024", outputs[7])
 
@@ -367,7 +484,7 @@ class UpdateDashboardTests(unittest.TestCase):
         ):
             outputs = dashboard.update_dashboard("2020", "testing", "USD")
 
-        self.assertEqual(len(outputs), 10)
+        self.assertEqual(len(outputs), 11)
         self.assertEqual(len(outputs[0]), len(dashboard.KPI_LABELS))
         self.assertIn("unavailable", text_of(outputs[5]))
         self.assertEqual(outputs[1].layout.annotations[0].text, text_of(outputs[5]))

@@ -14,7 +14,16 @@ import dash
 import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
-from dash import Input, Output, callback, dash_table, dcc, html
+from dash import (
+    ClientsideFunction,
+    Input,
+    Output,
+    callback,
+    clientside_callback,
+    dash_table,
+    dcc,
+    html,
+)
 
 from algorithm_data import get_dashboard_data, ytd_return_by_symbol
 from portfolio_history import (
@@ -64,6 +73,26 @@ LOADING_TEXT = 'Loading market data…'
 
 KPI_LABELS = ('Portfolio return', 'ACWI benchmark', 'Annualized volatility', 'Max drawdown')
 
+# One-line explanations: a tooltip on the dashboard, a visible note when scrolling.
+KPI_NOTES = {
+    'Portfolio return': 'Compounded daily returns of the portfolio over the selected window.',
+    'ACWI benchmark': 'Compounded daily returns of the ACWI benchmark over the same window.',
+    'Annualized volatility': 'Standard deviation of daily returns in the selected window, annualized.',
+    'Max drawdown': 'The single worst peak-to-trough loss across the full strategy history.',
+}
+NOK_DRAWDOWN_NOTE = (
+    'The supplied training maximum is the floor; the visible NOK '
+    'training path uses monthly observations.'
+)
+
+# The page has two layouts over the same components; a client-side callback
+# (assets/algorithm-dashboard.js) puts the matching class on #ad-page.
+VIEW_OPTIONS = [
+    {'label': 'Dashboard', 'value': 'dashboard'},
+    {'label': 'Scroll', 'value': 'scroll'},
+]
+DEFAULT_VIEW = 'dashboard'
+
 
 def _empty_figure(message):
     """A blank, axis-less figure that just shows a message."""
@@ -95,7 +124,7 @@ def _subtitle(training):
 # Layout helpers
 # ---------------------------------------------------------------------------
 
-def _segmented(component_id, label, options, value):
+def _segmented(component_id, label, options, value, **radio_props):
     label_id = f'{component_id}-label'
     return html.Div(
         [
@@ -107,6 +136,7 @@ def _segmented(component_id, label, options, value):
                 className='ad-seg',
                 labelClassName='ad-seg-option',
                 inputClassName='ad-seg-input',
+                **radio_props,
             ),
         ],
         className='ad-control',
@@ -114,12 +144,15 @@ def _segmented(component_id, label, options, value):
 
 
 def _kpi_card(label, value='—', sub='', tone='neutral', tip=None):
+    children = [
+        html.Div(label, className='ad-kpi-label'),
+        html.Div(value, className='ad-kpi-value'),
+        html.Div(sub, className='ad-kpi-sub'),
+    ]
+    if tip:
+        children.append(html.Div(tip, className='ad-kpi-note'))
     return html.Div(
-        [
-            html.Div(label, className='ad-kpi-label'),
-            html.Div(value, className='ad-kpi-value'),
-            html.Div(sub, className='ad-kpi-sub'),
-        ],
+        children,
         className=f'ad-card ad-kpi ad-kpi--{tone}',
         title=tip,
     )
@@ -132,7 +165,7 @@ def _legend_item(label, swatch_class):
     )
 
 
-def _chart_card(title_id, graph_id, title, legend):
+def _chart_card(title_id, graph_id, title, legend, modifier):
     return html.Section(
         [
             html.Div(
@@ -148,10 +181,9 @@ def _chart_card(title_id, graph_id, title, legend):
                 responsive=True,
                 config=GRAPH_CONFIG,
                 figure=_empty_figure(''),
-                style={'height': '100%'},
             ),
         ],
-        className='ad-card ad-chart-card',
+        className=f'ad-card ad-chart-card ad-chart-card--{modifier}',
     )
 
 
@@ -162,146 +194,188 @@ _PORTFOLIO_LEGEND = [
 
 
 layout = html.Div(
-    [
-        html.Header(
+    dcc.Loading(
+        html.Div(
             [
-                html.Canvas(
-                    id='algo-trend-canvas',
-                    className='ad-trend',
-                    **{'aria-hidden': 'true'},
+                html.Div(
+                    [
+                        html.Div(
+                            [
+                                html.Canvas(
+                                    id='algo-trend-canvas',
+                                    className='ad-trend',
+                                    **{'aria-hidden': 'true'},
+                                ),
+                                html.Div(
+                                    _segmented(
+                                        'ad-view',
+                                        'Layout',
+                                        VIEW_OPTIONS,
+                                        DEFAULT_VIEW,
+                                        persistence=True,
+                                        persistence_type='local',
+                                    ),
+                                    className='ad-view-control',
+                                ),
+                                html.Div(
+                                    [
+                                        html.Div(
+                                            'Factor investing dashboard',
+                                            className='ad-eyebrow',
+                                        ),
+                                        html.H1('Optimized Factor Portfolio', className='ad-title'),
+                                        html.Div(
+                                            _subtitle('2020'),
+                                            id='ad-subtitle',
+                                            className='ad-subtitle',
+                                        ),
+                                        html.P(
+                                            DESCRIPTIONS['2020'],
+                                            id='ad-hero-description',
+                                            className='ad-hero-description',
+                                        ),
+                                    ],
+                                    className='ad-title-text',
+                                ),
+                            ],
+                            className='ad-title-block',
+                        ),
+                        html.Div(
+                            [
+                                _segmented(
+                                    'ad-training',
+                                    'Training period',
+                                    [
+                                        {'label': '2015-2024', 'value': '2015'},
+                                        {'label': '2020-2024', 'value': '2020'},
+                                    ],
+                                    '2020',
+                                ),
+                                _segmented(
+                                    'ad-window',
+                                    'Performance window',
+                                    [
+                                        {'label': 'Testing period', 'value': 'testing'},
+                                        {'label': 'YTD', 'value': 'ytd'},
+                                    ],
+                                    'testing',
+                                ),
+                                _segmented(
+                                    'ad-currency',
+                                    'Base currency',
+                                    [
+                                        {'label': 'USD', 'value': 'USD'},
+                                        {'label': 'NOK', 'value': 'NOK'},
+                                    ],
+                                    'USD',
+                                ),
+                            ],
+                            className='ad-controls',
+                        ),
+                    ],
+                    className='ad-card ad-topbar',
+                ),
+                html.Section(
+                    [_kpi_card(label, tip=KPI_NOTES[label]) for label in KPI_LABELS],
+                    id='ad-kpis',
+                    className='ad-kpis',
                 ),
                 html.Div(
                     [
-                        html.Div('Factor investing dashboard', className='ad-eyebrow'),
-                        html.H1('Optimized Factor Portfolio', className='ad-title'),
-                        html.Div(_subtitle('2020'), id='ad-subtitle', className='ad-subtitle'),
+                        html.Div(
+                            [
+                                _chart_card(
+                                    'ad-full-title',
+                                    'ad-full-graph',
+                                    'Training + testing performance · USD',
+                                    _PORTFOLIO_LEGEND,
+                                    'full',
+                                ),
+                                _chart_card(
+                                    'ad-period-title',
+                                    'ad-period-graph',
+                                    'Testing period performance · USD',
+                                    _PORTFOLIO_LEGEND,
+                                    'period',
+                                ),
+                            ],
+                            className='ad-charts',
+                        ),
+                        html.Div(
+                            [
+                                html.Section(
+                                    [
+                                        html.Div(
+                                            [
+                                                html.H2(
+                                                    'Current composition',
+                                                    className='ad-card-title',
+                                                ),
+                                                html.Span(
+                                                    id='ad-holdings-count',
+                                                    className='ad-chip',
+                                                ),
+                                            ],
+                                            className='ad-card-head',
+                                        ),
+                                        html.Div(
+                                            'Swipe horizontally to view all columns',
+                                            className='ad-scroll-hint',
+                                        ),
+                                        html.Div(
+                                            html.Div(
+                                                'Loading composition…',
+                                                className='ad-table-placeholder',
+                                            ),
+                                            id='ad-table',
+                                            className='ad-table-wrap',
+                                        ),
+                                    ],
+                                    className='ad-card ad-composition-card',
+                                ),
+                                html.Section(
+                                    [
+                                        html.H2('About the model', className='ad-card-title'),
+                                        html.P(
+                                            DESCRIPTIONS['2020'],
+                                            id='ad-description',
+                                            className='ad-about-text',
+                                        ),
+                                        html.Ul(
+                                            [
+                                                html.Li('Shaded band: training period, monthly observations.'),
+                                                html.Li('Dashed line: where daily testing begins.'),
+                                                html.Li('Labels on the right edge: latest cumulative return.'),
+                                            ],
+                                            className='ad-about-list',
+                                        ),
+                                        html.Div(LOADING_TEXT, id='ad-asof', className='ad-asof'),
+                                    ],
+                                    className='ad-card ad-about-card',
+                                ),
+                            ],
+                            className='ad-side',
+                        ),
                     ],
-                    className='ad-title-block',
-                ),
-                html.Div(
-                    [
-                        _segmented(
-                            'ad-training',
-                            'Training period',
-                            [
-                                {'label': '2015-2024', 'value': '2015'},
-                                {'label': '2020-2024', 'value': '2020'},
-                            ],
-                            '2020',
-                        ),
-                        _segmented(
-                            'ad-window',
-                            'Performance window',
-                            [
-                                {'label': 'Testing period', 'value': 'testing'},
-                                {'label': 'YTD', 'value': 'ytd'},
-                            ],
-                            'testing',
-                        ),
-                        _segmented(
-                            'ad-currency',
-                            'Base currency',
-                            [
-                                {'label': 'USD', 'value': 'USD'},
-                                {'label': 'NOK', 'value': 'NOK'},
-                            ],
-                            'USD',
-                        ),
-                    ],
-                    className='ad-controls',
+                    className='ad-main',
                 ),
             ],
-            className='ad-card ad-topbar',
+            className='ad-body',
         ),
+        custom_spinner=html.Div(LOADING_TEXT, className='ad-spinner'),
+        parent_className='ad-loading',
+        overlay_style={'visibility': 'visible', 'opacity': 0.55},
+        delay_show=250,
+    ),
+    id='ad-page',
+    className=f'ad-page ad-page--{DEFAULT_VIEW}',
+)
 
-        dcc.Loading(
-            html.Div(
-                [
-                    html.Section(
-                        [_kpi_card(label) for label in KPI_LABELS],
-                        id='ad-kpis',
-                        className='ad-kpis',
-                    ),
-                    html.Div(
-                        [
-                            html.Div(
-                                [
-                                    _chart_card(
-                                        'ad-full-title',
-                                        'ad-full-graph',
-                                        'Training + testing performance · USD',
-                                        _PORTFOLIO_LEGEND,
-                                    ),
-                                    _chart_card(
-                                        'ad-period-title',
-                                        'ad-period-graph',
-                                        'Testing period performance · USD',
-                                        _PORTFOLIO_LEGEND,
-                                    ),
-                                ],
-                                className='ad-charts',
-                            ),
-                            html.Div(
-                                [
-                                    html.Section(
-                                        [
-                                            html.Div(
-                                                [
-                                                    html.H2(
-                                                        'Current composition',
-                                                        className='ad-card-title',
-                                                    ),
-                                                    html.Span(
-                                                        id='ad-holdings-count',
-                                                        className='ad-chip',
-                                                    ),
-                                                ],
-                                                className='ad-card-head',
-                                            ),
-                                            html.Div(
-                                                'Swipe horizontally to view all columns',
-                                                className='ad-scroll-hint',
-                                            ),
-                                            html.Div(
-                                                html.Div('Loading composition…', className='ad-table-placeholder'),
-                                                id='ad-table',
-                                                className='ad-table-wrap',
-                                            ),
-                                        ],
-                                        className='ad-card ad-composition-card',
-                                    ),
-                                    html.Section(
-                                        [
-                                            html.H2('About the model', className='ad-card-title'),
-                                            html.P(DESCRIPTIONS['2020'], id='ad-description', className='ad-about-text'),
-                                            html.Ul(
-                                                [
-                                                    html.Li('Shaded band: training period, monthly observations.'),
-                                                    html.Li('Dashed line: where daily testing begins.'),
-                                                    html.Li('Labels on the right edge: latest cumulative return.'),
-                                                ],
-                                                className='ad-about-list',
-                                            ),
-                                            html.Div(LOADING_TEXT, id='ad-asof', className='ad-asof'),
-                                        ],
-                                        className='ad-card ad-about-card',
-                                    ),
-                                ],
-                                className='ad-side',
-                            ),
-                        ],
-                        className='ad-main',
-                    ),
-                ],
-                className='ad-body',
-            ),
-            custom_spinner=html.Div(LOADING_TEXT, className='ad-spinner'),
-            parent_className='ad-loading',
-            overlay_style={'visibility': 'visible', 'opacity': 0.55},
-            delay_show=250,
-        ),
-    ],
-    className='ad-page',
+# Flip the layout class without a server round-trip (see assets/algorithm-dashboard.js).
+clientside_callback(
+    ClientsideFunction(namespace='algorithm_dashboard', function_name='set_layout'),
+    Output('ad-page', 'className'),
+    Input('ad-view', 'value'),
 )
 
 
@@ -594,8 +668,9 @@ def _composition_table(bundle, today):
 
 def _unavailable_outputs(training, window, currency, message):
     placeholder = _empty_figure(message)
+    description = DESCRIPTIONS.get(training, DESCRIPTIONS['2020'])
     return (
-        [_kpi_card(label) for label in KPI_LABELS],
+        [_kpi_card(label, tip=KPI_NOTES[label]) for label in KPI_LABELS],
         placeholder,
         placeholder,
         f'Training + testing performance · {currency}',
@@ -603,8 +678,9 @@ def _unavailable_outputs(training, window, currency, message):
         html.Div(message, className='ad-empty'),
         '',
         _subtitle(training),
-        DESCRIPTIONS.get(training, DESCRIPTIONS['2020']),
+        description,
         'Data unavailable',
+        description,
     )
 
 
@@ -620,6 +696,7 @@ def _unavailable_outputs(training, window, currency, message):
         Output('ad-subtitle', 'children'),
         Output('ad-description', 'children'),
         Output('ad-asof', 'children'),
+        Output('ad-hero-description', 'children'),
     ],
     [
         Input('ad-training', 'value'),
@@ -697,7 +774,7 @@ def update_dashboard(training, window, currency):
             signed(total_return),
             f'{since_label} · {currency}',
             tone='positive' if pd.notna(total_return) and total_return >= 0 else 'negative',
-            tip='Compounded daily returns of the portfolio over the selected window.',
+            tip=KPI_NOTES['Portfolio return'],
         ),
         _kpi_card(
             'ACWI benchmark',
@@ -707,26 +784,21 @@ def update_dashboard(training, window, currency):
                 if pd.notna(excess) else 'Same window'
             ),
             tone='neutral',
-            tip='Compounded daily returns of the ACWI benchmark over the same window.',
+            tip=KPI_NOTES['ACWI benchmark'],
         ),
         _kpi_card(
             'Annualized volatility',
             pct(volatility),
             f'Daily returns · {WINDOW_LABELS[window].lower()}',
             tone='accent',
-            tip='Standard deviation of daily returns in the selected window, annualized.',
+            tip=KPI_NOTES['Annualized volatility'],
         ),
         _kpi_card(
             'Max drawdown',
             pct(max_drawdown),
             f'Training + testing · {currency}',
             tone='negative',
-            tip=(
-                'The supplied training maximum is the floor; the visible NOK '
-                'training path uses monthly observations.'
-                if currency == 'NOK'
-                else 'The single worst peak-to-trough loss across the full strategy history.'
-            ),
+            tip=NOK_DRAWDOWN_NOTE if currency == 'NOK' else KPI_NOTES['Max drawdown'],
         ),
     ]
 
@@ -735,6 +807,7 @@ def update_dashboard(training, window, currency):
     period_figure = _performance_figure(period_frame)
 
     table, holdings = _composition_table(bundle, today)
+    description = DESCRIPTIONS.get(training, DESCRIPTIONS['2020'])
 
     return (
         kpis,
@@ -745,6 +818,7 @@ def update_dashboard(training, window, currency):
         table,
         f'{holdings} holdings',
         _subtitle(training),
-        DESCRIPTIONS.get(training, DESCRIPTIONS['2020']),
+        description,
         f'Data as of {today:%b %d, %Y} · prices via Yahoo Finance · returns in {currency}',
+        description,
     )
