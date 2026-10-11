@@ -219,7 +219,7 @@
   width: 100%;
 }
 
-.ad-view-control .ad-seg .dash-options-list-option {
+.ad-view-control .ad-seg > label {
   flex: 1 1 0;
   justify-content: center;
 }
@@ -247,9 +247,12 @@
   color: var(--text-muted);
 }
 
-/* Segmented radio group (dcc.RadioItems).  Dash 4 renders each option as
-   <label.dash-options-list-option[.selected]> wrapping a hidden-able input
-   wrapper and a text span, so the pill styling hangs off the label. */
+/* Segmented radio group (dcc.RadioItems).  Production runs Dash 3
+   (<label><input type="radio">text</label>) while newer Dash 4 renders
+   <label.dash-options-list-option[.selected]> around an input wrapper and a
+   text span.  The only structure both share is "options are <label> children of
+   the group, and the chosen one contains a checked input", so that is what the
+   pill styling hangs off. */
 .ad-seg {
   display: inline-flex;
   flex-direction: row;
@@ -260,55 +263,61 @@
   background: var(--surface-subtle);
 }
 
-.ad-seg .dash-options-list-option {
+/* !important on display: Dash 3 writes an inline `display: block` on labels. */
+.ad-seg > label {
   position: relative;
-  display: inline-flex;
+  display: inline-flex !important;
   align-items: center;
   margin: 0;
   padding: 5px 13px;
   border-radius: 999px;
   cursor: pointer;
+  font-size: 12.5px;
+  font-weight: 600;
+  line-height: 1.2;
+  white-space: nowrap;
   color: var(--text-secondary);
   transition: background-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
 }
 
-/* Dash ships a hover/focus-within colour rule with higher specificity than a
-   plain two-class selector, so the pill states are written as .ad-seg.ad-seg
-   to win without !important. */
-.ad-seg.ad-seg .dash-options-list-option:hover,
-.ad-seg.ad-seg .dash-options-list-option:focus-within {
+/* Dash 4 ships a hover/focus-within colour rule with higher specificity than a
+   plain selector, so the pill states repeat the class to win without
+   !important. */
+.ad-seg.ad-seg.ad-seg > label:hover,
+.ad-seg.ad-seg.ad-seg > label:focus-within {
   color: var(--text-primary);
   background: rgb(3 105 161 / 0.08);
 }
 
-.ad-seg.ad-seg .dash-options-list-option.selected,
-.ad-seg.ad-seg .dash-options-list-option.selected:hover,
-.ad-seg.ad-seg .dash-options-list-option.selected:focus-within {
+.ad-seg.ad-seg.ad-seg > label:has(input:checked),
+.ad-seg.ad-seg.ad-seg > label:has(input:checked):hover,
+.ad-seg.ad-seg.ad-seg > label:has(input:checked):focus-within {
   background: var(--interactive);
   color: var(--on-accent);
   box-shadow: 0 2px 8px rgb(3 105 161 / 0.32);
 }
 
-.ad-seg .dash-options-list-option:has(input:focus-visible) {
+.ad-seg > label:has(input:focus-visible) {
   outline: 3px solid rgb(3 105 161 / 0.35);
   outline-offset: 1px;
 }
 
+/* Dash 4 wraps the option text in a span of its own. */
 .ad-seg .dash-options-list-option-text {
   padding: 0;
   margin: 0;
-  font-size: 12.5px;
-  font-weight: 600;
-  line-height: 1.2;
+  font: inherit;
   color: inherit;
   white-space: nowrap;
 }
 
-/* Visually hidden radio input: still focusable and announced. */
+/* The native radio is visually hidden but stays focusable and announced. */
+.ad-seg input[type="radio"],
 .ad-seg .dash-options-list-option-wrapper {
   position: absolute;
   width: 1px;
   height: 1px;
+  margin: 0;
   overflow: hidden;
   opacity: 0;
   pointer-events: none;
@@ -918,7 +927,7 @@
 @media (prefers-reduced-motion: reduce) {
   .ad-card,
   .ad-title-block,
-  .ad-seg .dash-options-list-option {
+  .ad-seg > label {
     transition: none;
   }
 

@@ -212,6 +212,17 @@ class LayoutSwitchTests(unittest.TestCase):
         self.assertGreater(css.index(".ad-view-control {\n    display: block;"), desktop_query)
         self.assertIn(".ad-view-control {\n  display: none;", css[:desktop_query])
 
+    def test_option_pills_hang_off_markup_that_dash_3_and_4_share(self):
+        # Production pins Dash 3 (requirements.txt), whose radios are plain
+        # <label><input> pairs with no ".selected" class or wrapper spans.
+        css = self.stylesheet()
+
+        self.assertRegex(
+            css, r"\.ad-seg(?:\.ad-seg)*\s*>\s*label:has\(input:checked\)"
+        )
+        self.assertNotRegex(css, r"\.dash-options-list-option(?:\.selected|:hover)")
+        self.assertNotIn(".ad-seg .dash-options-list-option {", css)
+
     def test_hero_and_about_both_receive_the_description(self):
         bundle = UpdateDashboardTests.synthetic_bundle()
         with patch.object(dashboard, "get_dashboard_data", return_value=bundle):
