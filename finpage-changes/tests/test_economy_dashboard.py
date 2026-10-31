@@ -6,6 +6,7 @@ into components, plus the places where Python and the stylesheet have to agree.
 """
 
 import importlib
+import importlib.util
 import inspect
 import json
 import re
@@ -281,6 +282,45 @@ class LayoutWiringTests(unittest.TestCase):
         running = callback_entry("ed-kpis.children")["running"]
         self.assertEqual(running["running"], {"ed-refresh.disabled": True})
         self.assertEqual(running["runningOff"], {"ed-refresh.disabled": False})
+
+
+# --------------------------------------------------------------------------
+# Routing: "Economy" opens the dashboard, the classic page stays reachable
+# --------------------------------------------------------------------------
+
+def load_home():
+    """The home page module, executed without an app."""
+    path = SRC / "pages" / "home.py"
+    spec = importlib.util.spec_from_file_location("_test_economy_routing_home", path)
+    module = importlib.util.module_from_spec(spec)
+    with patch.object(dash, "register_page"):
+        spec.loader.exec_module(module)
+    return module
+
+
+class RoutingTests(unittest.TestCase):
+    def test_navigation_economy_link_opens_the_dashboard(self):
+        source = (SRC / "app.py").read_text(encoding="utf-8")
+
+        self.assertRegex(source, r'"Economy",\s*href="/economy-dashboard"')
+        self.assertNotRegex(source, r'"Economy",\s*href="/economy"')
+
+    def test_home_economy_card_opens_the_dashboard(self):
+        links = {
+            component.href: text_of(component)
+            for component in walk(load_home().layout)
+            if getattr(component, "href", None)
+        }
+
+        self.assertIn("/economy-dashboard", links)
+        self.assertIn("Economy", links["/economy-dashboard"])
+        self.assertNotIn("/economy", links)
+
+    def test_classic_economy_page_keeps_its_path(self):
+        source = (SRC / "pages" / "useconomy.py").read_text(encoding="utf-8")
+
+        self.assertRegex(source, r'register_page\(__name__,\s*path="/economy"\)')
+        self.assertEqual(REGISTERED["path"], "/economy-dashboard")
 
 
 # --------------------------------------------------------------------------

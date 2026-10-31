@@ -106,7 +106,7 @@ layout = html.Div(
                 html.Div(
                     [
                         _quick_link(
-                            "/economy",
+                            "/economy-dashboard",
                             "trend",
                             "Economy",
                             "Macro indicators for the US, Norway, EU and UK",

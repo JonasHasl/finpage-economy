@@ -62,7 +62,7 @@ nav_links = dbc.Nav(
         dbc.NavItem(
             dbc.NavLink(
                 "Economy",
-                href="/economy",
+                href="/economy-dashboard",
                 className="top-nav-link",
                 style=NAV_LINK_STYLE,
                 active="exact",
