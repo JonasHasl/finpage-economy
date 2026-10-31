@@ -658,6 +658,12 @@ class TTLCache:
             else:
                 self._store.pop(key, None)
 
+    def peek(self, key):
+        """The cached value for ``key``, fresh or stale, or None; never loads."""
+        with self._lock:
+            entry = self._store.get(key)
+        return entry[0] if entry else None
+
 
 # ------------------------------------------------------- market assembly ---
 EU_COUNTRIES = {
@@ -920,6 +926,11 @@ def get_market_data(market, force=False):
 
 def get_comparison_data(force=False):
     return _cache.get_or_load("comparison", load_comparison_data, force=force)
+
+
+def peek_market_data(market):
+    """A market's data if it is already cached (possibly stale); never fetches."""
+    return _cache.peek(market)
 
 
 def refresh_market(market):
