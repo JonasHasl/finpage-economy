@@ -100,9 +100,9 @@ BOND_MARKET_PAGE_STYLE = {
 
 
 def _lock_graph_navigation(fig, *, is_3d=False):
-    """Keep hover details available while preventing chart navigation."""
+    """Keep 2D axes fixed while allowing 3D orbit interaction and hover."""
     if is_3d:
-        fig.update_scenes(dragmode=False)
+        fig.update_scenes(dragmode='orbit')
     else:
         fig.update_layout(dragmode=False)
         fig.update_xaxes(fixedrange=True)
@@ -110,11 +110,14 @@ def _lock_graph_navigation(fig, *, is_3d=False):
     return fig
 
 
-def bond_graph(graph_id, style):
-    """Create a responsive graph with navigation locked consistently."""
+def bond_graph(graph_id, style, *, is_3d=False):
+    """Keep 2D charts fixed and allow navigation of 3D yield surfaces."""
+    config = BOND_GRAPH_CONFIG.copy()
+    if is_3d:
+        config['scrollZoom'] = True
     return dcc.Graph(
         id=graph_id,
-        config=BOND_GRAPH_CONFIG.copy(),
+        config=config,
         responsive=True,
         style=style,
     )
@@ -311,7 +314,7 @@ def serve_layout():
                         inputStyle={'marginRight': '6px', 'marginLeft': '12px'},
                         labelStyle={'display': 'inline-block', 'marginRight': '12px'}
                     ),
-                    bond_graph('yield-curve-3df', BOND_GRAPH_STYLE_3D),
+                    bond_graph('yield-curve-3df', BOND_GRAPH_STYLE_3D, is_3d=True),
                     html.Br(),
                     bond_graph('latest-yield-curve-us', BOND_GRAPH_STYLE_2D),
                     html.Br(),
@@ -344,7 +347,7 @@ def serve_layout():
                         inputStyle={'marginRight': '6px', 'marginLeft': '12px'},
                         labelStyle={'display': 'inline-block', 'marginRight': '12px'}
                     ),
-                    bond_graph('nor-yield-curve-3d', BOND_GRAPH_STYLE_3D),
+                    bond_graph('nor-yield-curve-3d', BOND_GRAPH_STYLE_3D, is_3d=True),
                     html.Br(),
                     bond_graph('latest-yield-curve-nor', BOND_GRAPH_STYLE_2D),
                     html.Br(),

@@ -14,6 +14,7 @@ from portfolio_history import (
     get_training_dates,
 )
 from theme import LIGHT_THEME
+from drawdown_chart import create_drawdown_figure
 
 
 dash.register_page(__name__, path='/portfolio-daily')
@@ -643,6 +644,19 @@ layout = html.Div(dbc.Container([
         ], className='algo-section-card algo-graph-card', style=SECTION_CARD_STYLE), width=12)
     ], className='algo-section-row', style={'maxWidth': '1120px', 'margin': '0 auto 1.5rem auto'}),
 
+    dbc.Row([
+        dbc.Col(html.Div([
+            html.Div('Selected-window drawdown', id='drawdown-graph-label', className='algo-section-label', style=SECTION_LABEL_STYLE),
+            dcc.Graph(
+                id='period-drawdown-chart',
+                className='algo-performance-graph algo-drawdown-graph',
+                responsive=True,
+                config=ALGORITHM_GRAPH_CONFIG,
+                style={'height': '380px'},
+            ),
+        ], className='algo-section-card algo-graph-card', style=SECTION_CARD_STYLE), width=12),
+    ], className='algo-section-row', style={'maxWidth': '1120px', 'margin': '0 auto 1.5rem auto'}),
+
     html.Div([
         dbc.Row([
             dbc.Col(html.Div(id='portfolio-return-card'), xs=12, md=6, lg=4),
@@ -691,7 +705,9 @@ layout = html.Div(dbc.Container([
      Output('volatility-card', 'children'),
      Output('max-drawdown-card', 'children'),
      Output('current-composition-table', 'children'),
-     Output('dynamic-description', 'children')],
+     Output('dynamic-description', 'children'),
+     Output('period-drawdown-chart', 'figure'),
+     Output('drawdown-graph-label', 'children')],
     [Input('composition-selector', 'value'),
      Input('period-selector', 'value'),
      Input('currency-selector', 'value')]
@@ -728,6 +744,7 @@ def update_dashboard(composition_sheet, period, currency):
         return (
             empty_fig, empty_fig, "Selected-period performance",
             no_data_card, no_data_card, no_data_card, no_data_card, description,
+            empty_fig, 'Selected-window drawdown',
         )
 
     today = portfolio_returns.index.max()
@@ -1013,4 +1030,6 @@ def update_dashboard(composition_sheet, period, currency):
         max_drawdown_card,
         table,
         description,
+        create_drawdown_figure(period_returns['Portfolio_Return'], currency=currency),
+        f'{"Year-to-date" if period == "ytd" else "Testing-period"} drawdown ({currency})',
     )

@@ -56,9 +56,10 @@
 .ad-chart-card--full { order: 1; }
 .ad-controls { order: 2; }
 .ad-chart-card--period { order: 3; }
-.ad-kpis { order: 4; }
-.ad-composition-card { order: 5; }
-.ad-about-card { order: 6; }
+.ad-chart-card--drawdown { order: 4; }
+.ad-kpis { order: 5; }
+.ad-composition-card { order: 6; }
+.ad-about-card { order: 7; }
 
 /* ---- Cards ----------------------------------------------------------------- */
 .ad-card {
@@ -786,7 +787,7 @@
     display: none;
   }
 
-  /* Main area: two stacked charts on the left, composition + about on the right. */
+  /* Main area: performance and drawdown charts, composition + about. */
   .ad-page--dashboard .ad-main {
     flex: 1 1 auto;
     min-height: 0;
@@ -798,7 +799,7 @@
   .ad-page--dashboard .ad-charts {
     min-height: 0;
     display: grid;
-    grid-template-rows: minmax(0, 1.12fr) minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1.05fr) minmax(0, 1fr) minmax(0, 1.05fr);
     gap: var(--ad-gap);
   }
 

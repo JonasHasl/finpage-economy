@@ -109,7 +109,7 @@ class DashboardWiringTests(unittest.TestCase):
         input_ids = {item["id"] for item in entry["inputs"] + entry["state"]}
 
         self.assertEqual((output_ids | input_ids) - layout_ids, set())
-        self.assertEqual(len(entry["output"].strip(".").split("...")), 11)
+        self.assertEqual(len(entry["output"].strip(".").split("...")), 13)
 
     def test_layout_switch_is_wired_client_side_to_the_page_root(self):
         from dash import _callback
@@ -195,6 +195,7 @@ class LayoutSwitchTests(unittest.TestCase):
             "ad-chart-card--full",
             "ad-controls",
             "ad-chart-card--period",
+            "ad-chart-card--drawdown",
             "ad-kpis",
             "ad-composition-card",
             "ad-about-card",
@@ -231,7 +232,7 @@ class LayoutSwitchTests(unittest.TestCase):
             failed = dashboard.update_dashboard("2015", "testing", "USD")
 
         for outputs in (ok, failed):
-            self.assertEqual(len(outputs), 11)
+            self.assertEqual(len(outputs), 13)
             self.assertEqual(outputs[10], outputs[8])
             self.assertIn("2015-2024", outputs[10])
 
@@ -453,7 +454,7 @@ class UpdateDashboardTests(unittest.TestCase):
         self.assertEqual(values["Testing period return"], f"{expected:+.1%}")
         self.assertEqual(values["ACWI benchmark"], f"{benchmark:+.1%}")
         self.assertEqual(values["Annualized volatility"], "0.0%")
-        self.assertEqual(len(outputs), 11)
+        self.assertEqual(len(outputs), 13)
         self.assertIn("Testing period performance", outputs[4])
         self.assertIn("2020-2024", outputs[7])
 
@@ -470,6 +471,27 @@ class UpdateDashboardTests(unittest.TestCase):
         self.assertEqual(values["Year to date return"], f"{expected:+.1%}")
         self.assertIn("Year to date performance · NOK", outputs[4])
         self.assertIn("returns in NOK", outputs[9])
+
+    def test_drawdown_resets_at_the_selected_window_and_uses_its_return_stream(self):
+        bundle = self.synthetic_bundle()
+        dates = pd.to_datetime(['2025-12-30', '2025-12-31', '2026-01-02', '2026-01-05'])
+        for currency, losses in [('USD', [0.10, -0.30, -0.10, 0.10]),
+                                 ('NOK', [0.10, -0.30, -0.05, 0.02])]:
+            with self.subTest(currency=currency):
+                bundle['portfolio_returns'] = pd.DataFrame({
+                    'Portfolio_Return': losses, 'ACWI_Return': 0.0,
+                }, index=pd.DatetimeIndex(dates, name='Date'))
+                bundle['today'] = dates[-1]
+                with patch.object(dashboard, 'get_dashboard_data', return_value=bundle):
+                    ytd = dashboard.update_dashboard('2020', 'ytd', currency)
+                    testing = dashboard.update_dashboard('2020', 'testing', currency)
+
+                figure = ytd[11]
+                self.assertEqual(len(figure.data[0].x), 2)
+                self.assertAlmostEqual(figure.layout.shapes[0].y0, losses[2])
+                self.assertAlmostEqual(figure.data[0].y[-1], (1 + losses[2]) * (1 + losses[3]) - 1)
+                self.assertLess(testing[11].layout.shapes[0].y0, figure.layout.shapes[0].y0)
+                self.assertEqual(ytd[12], f'Year to date drawdown · {currency}')
 
     def test_composition_is_sorted_by_ytd_and_links_are_escaped(self):
         bundle = self.synthetic_bundle()
@@ -495,7 +517,7 @@ class UpdateDashboardTests(unittest.TestCase):
         ):
             outputs = dashboard.update_dashboard("2020", "testing", "USD")
 
-        self.assertEqual(len(outputs), 11)
+        self.assertEqual(len(outputs), 13)
         self.assertEqual(len(outputs[0]), len(dashboard.KPI_LABELS))
         self.assertIn("unavailable", text_of(outputs[5]))
         self.assertEqual(outputs[1].layout.annotations[0].text, text_of(outputs[5]))

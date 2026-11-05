@@ -26,6 +26,7 @@ from dash import (
 )
 
 from algorithm_data import get_dashboard_data, ytd_return_by_symbol
+from drawdown_chart import create_drawdown_figure
 from portfolio_history import (
     calculate_returns_since_inclusion,
     calculate_strategy_max_drawdown,
@@ -297,6 +298,13 @@ layout = html.Div(
                                     'Testing period performance · USD',
                                     _PORTFOLIO_LEGEND,
                                     'period',
+                                ),
+                                _chart_card(
+                                    'ad-drawdown-title',
+                                    'ad-drawdown-graph',
+                                    'Selected-window drawdown · USD',
+                                    [],
+                                    'drawdown',
                                 ),
                             ],
                             className='ad-charts',
@@ -681,6 +689,8 @@ def _unavailable_outputs(training, window, currency, message):
         description,
         'Data unavailable',
         description,
+        placeholder,
+        f'{WINDOW_LABELS.get(window, "Selected-window")} drawdown · {currency}',
     )
 
 
@@ -697,6 +707,8 @@ def _unavailable_outputs(training, window, currency, message):
         Output('ad-description', 'children'),
         Output('ad-asof', 'children'),
         Output('ad-hero-description', 'children'),
+        Output('ad-drawdown-graph', 'figure'),
+        Output('ad-drawdown-title', 'children'),
     ],
     [
         Input('ad-training', 'value'),
@@ -821,4 +833,6 @@ def update_dashboard(training, window, currency):
         description,
         f'Data as of {today:%b %d, %Y} · prices via Yahoo Finance · returns in {currency}',
         description,
+        create_drawdown_figure(period_returns['Portfolio_Return'], currency=currency),
+        f'{WINDOW_LABELS[window]} drawdown · {currency}',
     )

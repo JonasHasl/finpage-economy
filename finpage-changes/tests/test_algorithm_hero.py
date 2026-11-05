@@ -91,7 +91,7 @@ class AlgorithmGraphInteractionTests(unittest.TestCase):
             if component.to_plotly_json().get("type") == "Graph"
         ]
 
-        self.assertEqual(len(graphs), 2)
+        self.assertEqual(len(graphs), 3)
         for graph in graphs:
             config = graph.to_plotly_json()["props"]["config"]
             self.assertFalse(config["displayModeBar"])

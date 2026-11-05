@@ -38,7 +38,10 @@ class BondGraphInteractionTests(unittest.TestCase):
 
         self.assertEqual(source.count("bond_graph('"), 7)
         self.assertEqual(source.count("dcc.Graph("), 1)
-        self.assertNotIn("'scrollZoom': True", source)
+
+    def test_three_dimensional_graph_allows_scroll_zoom(self):
+        graph = bond.bond_graph('surface', bond.BOND_GRAPH_STYLE_3D, is_3d=True)
+        self.assertTrue(graph.config['scrollZoom'])
 
     def test_two_dimensional_axes_are_locked_and_hover_is_preserved(self):
         figure = go.Figure(go.Scatter(x=[1, 2], y=[3, 4], hoverinfo="x+y"))
@@ -51,7 +54,7 @@ class BondGraphInteractionTests(unittest.TestCase):
         self.assertFalse(figure.layout.dragmode)
         self.assertEqual(figure.data[0].hoverinfo, "x+y")
 
-    def test_three_dimensional_camera_drag_is_locked_and_hover_is_preserved(self):
+    def test_three_dimensional_camera_can_orbit_and_hover_is_preserved(self):
         figure = go.Figure(
             go.Surface(z=np.array([[1.0, 2.0], [3.0, 4.0]]), hoverinfo="x+y+z")
         )
@@ -59,7 +62,7 @@ class BondGraphInteractionTests(unittest.TestCase):
         result = bond._lock_graph_navigation(figure, is_3d=True)
 
         self.assertIs(result, figure)
-        self.assertFalse(figure.layout.scene.dragmode)
+        self.assertEqual(figure.layout.scene.dragmode, 'orbit')
         self.assertEqual(figure.data[0].hoverinfo, "x+y+z")
 
 
