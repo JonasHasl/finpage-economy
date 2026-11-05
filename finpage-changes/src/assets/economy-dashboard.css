@@ -1,0 +1,1335 @@
+/* ============================================================
+   Economy dashboard (/economy-dashboard)
+
+   One page, two layouts, switched by a class on .ed-page:
+     .ed-page--dashboard   one-screen desktop dashboard (the default)
+     .ed-page--scroll      long page with large charts
+
+   The base rules below ARE the scrolling layout, so narrow or short
+   viewports -- where the dashboard cannot fit -- get it automatically.
+   The dashboard rules only apply inside the last desktop media query.
+
+   The page root also carries data-market="us|norway|eu|uk|comparison"
+   (set together with the new content) which shapes the grids and reveals
+   the market-specific controls.
+
+   Everything is namespaced under .ed-* so other pages are untouched.
+   Colour tokens come from custom.css (:root).
+   ============================================================ */
+
+/* ---- Page shell ------------------------------------------------------------ */
+.ed-page {
+  --ed-gap: 16px;
+  --ed-radius: 16px;
+  --ed-header-h: 100px;
+  --ed-view-w: 176px;
+  --ed-grid-cols: 5;
+  --ed-kpi-cols: 5;
+
+  min-height: calc(100vh - var(--ed-header-h));
+  min-height: calc(100dvh - var(--ed-header-h));
+  padding: 16px 16px 40px;
+  font-family: Arial, sans-serif;
+  font-size: 14px;
+  font-weight: 400;
+  color: var(--text-secondary);
+  background-color: var(--surface-page);
+  background-image:
+    radial-gradient(46rem 30rem at 92% -8%, rgb(3 105 161 / 0.10), transparent 60%),
+    radial-gradient(40rem 28rem at 0% 100%, rgb(4 120 87 / 0.06), transparent 60%);
+}
+
+/* Grid shape per market: tile columns (always two rows) and KPI columns. */
+.ed-page[data-market="us"]         { --ed-grid-cols: 5; --ed-kpi-cols: 5; }
+.ed-page[data-market="norway"]     { --ed-grid-cols: 5; --ed-kpi-cols: 5; }
+.ed-page[data-market="eu"]         { --ed-grid-cols: 4; --ed-kpi-cols: 5; }
+.ed-page[data-market="uk"]         { --ed-grid-cols: 3; --ed-kpi-cols: 4; }
+.ed-page[data-market="comparison"] { --ed-grid-cols: 2; --ed-kpi-cols: 4; }
+
+.ed-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ed-gap);
+  width: 100%;
+  max-width: 1320px;
+  margin: 0 auto;
+}
+
+/* ---- Cards ----------------------------------------------------------------- */
+.ed-card {
+  background: var(--surface-raised);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--ed-radius);
+  box-shadow: var(--shadow-soft);
+  min-height: 0;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.ed-card:hover {
+  border-color: rgb(3 105 161 / 0.42);
+  box-shadow: 0 12px 30px -12px rgb(3 105 161 / 0.22);
+}
+
+.ed-empty {
+  padding: 28px 12px;
+  text-align: center;
+  color: var(--text-muted);
+}
+
+.ed-dot {
+  display: inline-block;
+  flex: 0 0 auto;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--border-strong);
+}
+
+/* ---- Top bar: hero + controls -------------------------------------------------- */
+/* In the scrolling layout the hero and the controls are two separate cards;
+   the dashboard merges them into one (see the dashboard media query). */
+.ed-topbar {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ed-gap);
+}
+
+.ed-head {
+  position: relative;
+  overflow: hidden;
+  padding: 26px 18px 30px;
+  text-align: center;
+  border: 1px solid var(--border-subtle);
+  border-radius: calc(var(--ed-radius) + 4px);
+  box-shadow: var(--shadow-soft);
+  background:
+    radial-gradient(circle at 86% 0%, rgb(3 105 161 / 0.10), transparent 40%),
+    linear-gradient(180deg, var(--surface-raised) 0%, var(--surface-subtle) 100%);
+}
+
+/* Keeps the copy above the decorative canvas. */
+.ed-title-text {
+  position: relative;
+  z-index: 1;
+}
+
+/* Decorative animated trend line (drawn by algorithm-hero.js). */
+.ed-trend {
+  position: absolute;
+  left: 4%;
+  right: 4%;
+  bottom: 0;
+  width: 92%;
+  height: 42%;
+  display: block;
+  opacity: 0.42;
+  pointer-events: none;
+  -webkit-mask-image: linear-gradient(to top, #000 18%, rgba(0, 0, 0, 0.35) 55%, transparent);
+  mask-image: linear-gradient(to top, #000 18%, rgba(0, 0, 0, 0.35) 55%, transparent);
+}
+
+.ed-eyebrow {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 999px;
+  border: 1px solid rgb(3 105 161 / 0.28);
+  background: linear-gradient(135deg, rgb(3 105 161 / 0.10), rgb(4 120 87 / 0.08));
+  color: var(--interactive);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.ed-title {
+  margin: 10px 0 0;
+  font-size: clamp(25px, 6vw, 34px);
+  font-weight: 700;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+  color: var(--text-primary);
+}
+
+.ed-subtitle {
+  margin-top: 4px;
+  font-size: 12.5px;
+  color: var(--text-muted);
+}
+
+.ed-hero-description {
+  max-width: 780px;
+  margin: 10px auto 0;
+  font-size: 14px;
+  line-height: 1.65;
+  color: var(--text-secondary);
+}
+
+/* Layout switch -- always offered.  Under the hero text on small windows, in the
+   hero's corner on wide ones; where the one-screen dashboard cannot fit (see the
+   narrow-window block further down) it says so instead of disappearing. */
+.ed-view-control {
+  position: relative;
+  z-index: 2;
+  width: var(--ed-view-w);
+  max-width: 100%;
+  margin: 14px auto 0;
+  text-align: left;
+}
+
+.ed-view-control .ed-seg {
+  display: flex;
+  width: 100%;
+}
+
+.ed-view-control .ed-seg > label {
+  flex: 1 1 0;
+  justify-content: center;
+}
+
+.ed-view-hint {
+  display: none;
+  margin-top: 6px;
+  font-size: 10.5px;
+  line-height: 1.35;
+  text-align: center;
+  color: var(--text-muted);
+}
+
+.ed-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 12px 18px;
+  padding: 12px 16px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--ed-radius);
+  background: linear-gradient(180deg, var(--surface-raised) 0%, var(--surface-subtle) 100%);
+  box-shadow: var(--shadow-soft);
+}
+
+/* Market-specific controls appear with their market. */
+.ed-context {
+  display: none;
+}
+
+.ed-page[data-market="eu"] .ed-context--eu,
+.ed-page[data-market="comparison"] .ed-context--comparison {
+  display: block;
+}
+
+.ed-refresh {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 14px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 999px;
+  background: var(--surface-raised);
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  line-height: 1.2;
+  cursor: pointer;
+  transition: border-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.ed-refresh::before {
+  content: "";
+  width: 13px;
+  height: 13px;
+  background: currentColor;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M21 12a9 9 0 1 1-2.64-6.36'/%3E%3Cpath d='M21 3v6h-6'/%3E%3C/svg%3E") center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M21 12a9 9 0 1 1-2.64-6.36'/%3E%3Cpath d='M21 3v6h-6'/%3E%3C/svg%3E") center / contain no-repeat;
+}
+
+.ed-refresh:hover {
+  border-color: rgb(3 105 161 / 0.5);
+  color: var(--interactive);
+  box-shadow: 0 2px 8px rgb(3 105 161 / 0.16);
+}
+
+.ed-refresh:focus-visible {
+  outline: 3px solid rgb(3 105 161 / 0.35);
+  outline-offset: 1px;
+}
+
+/* Disabled while a fetch is running (see the `running` argument of the callback). */
+.ed-refresh:disabled {
+  opacity: 0.55;
+  cursor: progress;
+  box-shadow: none;
+  border-color: var(--border-subtle);
+  color: var(--text-secondary);
+}
+
+/* Segmented radio / checkbox group (dcc.RadioItems, dcc.Checklist).  Production
+   runs Dash 3 (<label><input>text</label>) while newer Dash 4 renders
+   <label.dash-options-list-option[.selected]> around an input wrapper and a
+   text span.  The only structure both share is "options are <label> children of
+   the group, and a chosen one contains a checked input", so that is what the
+   pill styling hangs off. */
+.ed-seg {
+  display: inline-flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: 2px;
+  max-width: 100%;
+  padding: 3px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 999px;
+  background: var(--surface-subtle);
+}
+
+/* !important on display: Dash 3 writes an inline `display: block` on labels. */
+.ed-seg > label {
+  position: relative;
+  display: inline-flex !important;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  padding: 5px 13px;
+  border-radius: 999px;
+  cursor: pointer;
+  font-size: 12.5px;
+  font-weight: 600;
+  line-height: 1.2;
+  white-space: nowrap;
+  color: var(--text-secondary);
+  transition: background-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
+}
+
+/* Dash 4 ships a hover/focus-within colour rule with higher specificity than a
+   plain selector, so the pill states repeat the class to win without
+   !important. */
+.ed-seg.ed-seg.ed-seg > label:hover,
+.ed-seg.ed-seg.ed-seg > label:has(input:focus-visible) {
+  color: var(--text-primary);
+  background: rgb(3 105 161 / 0.08);
+}
+
+/* A mouse click leaves focus on the hidden input; only keyboard focus (above)
+   and hover tint a pill, so a just-switched-off option does not look hovered. */
+.ed-seg.ed-seg.ed-seg > label:focus-within:not(:hover):not(:has(input:focus-visible)):not(:has(input:checked)) {
+  color: var(--text-secondary);
+  background: transparent;
+}
+
+.ed-seg.ed-seg.ed-seg > label:has(input:checked),
+.ed-seg.ed-seg.ed-seg > label:has(input:checked):hover,
+.ed-seg.ed-seg.ed-seg > label:has(input:checked):focus-within {
+  background: var(--interactive);
+  color: var(--on-accent);
+  box-shadow: 0 2px 8px rgb(3 105 161 / 0.32);
+}
+
+.ed-seg > label:has(input:focus-visible) {
+  outline: 3px solid rgb(3 105 161 / 0.35);
+  outline-offset: 1px;
+}
+
+/* Dash 4 wraps the option text in a span of its own. */
+.ed-seg .dash-options-list-option-text {
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  color: inherit;
+  white-space: nowrap;
+}
+
+/* The native control is visually hidden but stays focusable and announced. */
+.ed-seg input[type="radio"],
+.ed-seg input[type="checkbox"],
+.ed-seg .dash-options-list-option-wrapper {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: 0;
+  overflow: hidden;
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* Comparison countries: each option carries its line colour, matching the charts
+   and the KPI cards (a solid fill would hide a blue dot on a blue pill).
+   Options keep a fixed order: US, Euro Area, UK, Norway. */
+.ed-context--comparison .ed-seg > label {
+  --chip: var(--border-strong);
+}
+
+.ed-context--comparison .ed-seg > label:nth-child(1) { --chip: var(--interactive); }
+.ed-context--comparison .ed-seg > label:nth-child(2) { --chip: var(--positive); }
+.ed-context--comparison .ed-seg > label:nth-child(3) { --chip: var(--warning); }
+.ed-context--comparison .ed-seg > label:nth-child(4) { --chip: var(--negative); }
+
+.ed-context--comparison .ed-seg > label::before {
+  content: "";
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  border: 2px solid var(--chip);
+  background: transparent;
+}
+
+.ed-context--comparison .ed-seg.ed-seg.ed-seg > label:has(input:checked),
+.ed-context--comparison .ed-seg.ed-seg.ed-seg > label:has(input:checked):hover,
+.ed-context--comparison .ed-seg.ed-seg.ed-seg > label:has(input:checked):focus-within {
+  background: var(--surface-raised);
+  color: var(--text-primary);
+  box-shadow: inset 0 0 0 1.5px var(--chip), 0 1px 4px rgb(16 42 67 / 0.10);
+}
+
+.ed-context--comparison .ed-seg > label:has(input:checked)::before {
+  background: var(--chip);
+}
+
+/* ---- Loading ----------------------------------------------------------------- */
+/* dcc.Loading keeps an (empty) spinner container in normal flow after the
+   content; it is sized as a percentage of the viewport and would steal that
+   height.  Pin it to the viewport instead so the label stays visible however
+   far down the page the controls were used. */
+.ed-page > .ed-loading > div:last-child {
+  /* !important: while loading, Dash writes inline position/size/alignment. */
+  position: fixed !important;
+  inset: 0 !important;
+  height: auto !important;
+  width: auto !important;
+  display: flex;
+  align-items: flex-start !important;
+  justify-content: center;
+  padding-top: calc(var(--ed-header-h) + 110px);
+  pointer-events: none;
+  z-index: 5;
+}
+
+.ed-spinner {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 16px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 999px;
+  background: var(--surface-raised);
+  box-shadow: var(--shadow-soft);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.ed-spinner::before {
+  content: "";
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--interactive);
+  animation: ed-pulse 1s ease-in-out infinite;
+}
+
+@keyframes ed-pulse {
+  0%, 100% { transform: scale(0.7); opacity: 0.5; }
+  50%      { transform: scale(1.15); opacity: 1; }
+}
+
+/* ---- KPI strip --------------------------------------------------------------- */
+.ed-kpis {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--ed-gap);
+}
+
+.ed-kpi {
+  --kpi-accent: var(--interactive);
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+  padding: 11px 14px 11px 20px;
+  overflow: hidden;
+}
+
+.ed-kpi::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 10px;
+  bottom: 10px;
+  width: 4px;
+  border-radius: 0 4px 4px 0;
+  background: var(--kpi-accent);
+}
+
+.ed-kpi--empty { --kpi-accent: var(--border-subtle); }
+.ed-kpi--compare { --kpi-accent: var(--border-strong); }
+
+.ed-kpi-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ed-kpi-main {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  column-gap: 8px;
+}
+
+.ed-kpi-value {
+  font-size: clamp(22px, 6vw, 27px);
+  font-weight: 700;
+  line-height: 1.15;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-primary);
+}
+
+.ed-kpi--empty .ed-kpi-value {
+  color: var(--text-muted);
+}
+
+.ed-kpi-delta {
+  font-size: 11.5px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.ed-kpi-delta--flat {
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+.ed-kpi-meta {
+  font-size: 11px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Comparison KPI cards list the selected countries' latest values. */
+.ed-cmp {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 3px 14px;
+  margin-top: 4px;
+}
+
+.ed-cmp-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  font-size: 12.5px;
+}
+
+.ed-cmp-code {
+  font-weight: 700;
+  color: var(--text-secondary);
+}
+
+.ed-cmp-value {
+  margin-left: auto;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-primary);
+}
+
+.ed-cmp-row--empty .ed-cmp-value {
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+/* A country switched off in the chips stays listed (so the card keeps its
+   height) but steps back: muted text and a hollow dot, like the chip itself.
+   Opacity would drop the numbers below readable contrast. */
+.ed-cmp-row--off .ed-cmp-code,
+.ed-cmp-row--off .ed-cmp-value {
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+.ed-cmp-row--off .ed-dot {
+  background: transparent !important;
+  box-shadow: inset 0 0 0 1.5px var(--text-muted);
+}
+
+.ed-cmp + .ed-kpi-meta {
+  margin-top: 3px;
+}
+
+/* ---- Chart grid ------------------------------------------------------------------ */
+.ed-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--ed-gap);
+}
+
+.ed-tile {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding: 12px 14px 8px;
+  overflow: hidden;
+}
+
+.ed-tile-head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: baseline;
+  column-gap: 10px;
+  row-gap: 1px;
+  margin-bottom: 4px;
+}
+
+.ed-tile-title {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ed-tile-chip {
+  font-size: 13px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-primary);
+  white-space: nowrap;
+}
+
+.ed-tile-sub {
+  grid-column: 1 / -1;
+  display: flex;
+  min-width: 0;
+  font-size: 10.5px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+/* Only the axis description gives way when space is short.  The source and date
+   never shrink: even a sub-pixel squeeze would trigger an ellipsis that eats
+   the last digits of the date. */
+.ed-tile-axis {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ed-tile-sep,
+.ed-tile-asof {
+  flex: none;
+  white-space: pre;
+}
+
+.ed-legend {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.ed-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  white-space: nowrap;
+}
+
+.ed-legend-item--empty {
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+.ed-graph {
+  width: 100%;
+  min-width: 0;
+  height: 260px !important;
+}
+
+/* dcc.Graph(responsive=True) forces an inline `height: 100%`, which collapses
+   inside an auto-height card; each layout therefore states its height with
+   !important (the dashboard restates the 100% its grid cell needs). */
+.ed-graph .js-plotly-plot,
+.ed-graph .plot-container,
+.ed-graph .svg-container {
+  height: 100% !important;
+}
+
+.ed-tile--skeleton {
+  min-height: 200px;
+}
+
+.ed-skeleton {
+  flex: 1 1 auto;
+  min-height: 160px;
+  border-radius: 10px;
+  background: linear-gradient(100deg, var(--surface-subtle) 30%, rgb(255 255 255 / 0.7) 50%, var(--surface-subtle) 70%);
+  background-size: 220% 100%;
+  animation: ed-shimmer 1.6s ease-in-out infinite;
+}
+
+@keyframes ed-shimmer {
+  from { background-position: 120% 0; }
+  to   { background-position: -120% 0; }
+}
+
+.ed-tile--message {
+  grid-column: 1 / -1;
+  align-items: center;
+  justify-content: center;
+  min-height: 160px;
+}
+
+/* Euro Area country panel: four stats beside the country's stock index. */
+.ed-tile--detail {
+  grid-column: 1 / -1;
+}
+
+.ed-detail-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 12px;
+}
+
+.ed-detail-stats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.ed-mini {
+  min-width: 0;
+  padding: 7px 10px;
+  border: 1px solid var(--grid-color);
+  border-radius: 10px;
+  background: var(--surface-subtle);
+}
+
+.ed-mini-label {
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ed-mini-value {
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1.2;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-primary);
+}
+
+.ed-mini-meta {
+  font-size: 10px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Notes tile: fills the spare grid cell on the dashboard; the scrolling layout
+   shows the same text in the footnote instead. */
+.ed-tile--notes {
+  display: none;
+}
+
+.ed-notes-list {
+  margin: 6px 0 0;
+  padding-left: 16px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+}
+
+.ed-notes-list li + li {
+  margin-top: 6px;
+}
+
+.ed-tile-title--spaced {
+  margin-top: 12px;
+}
+
+.ed-notes-legend {
+  margin: 6px 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+
+.ed-notes-legend li {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.ed-notes-legend li + li {
+  margin-top: 3px;
+}
+
+.ed-key {
+  position: relative;
+  top: 1px;
+  flex: none;
+  display: inline-block;
+  width: 14px;
+  height: 8px;
+}
+
+.ed-key--dot::before {
+  content: "";
+  position: absolute;
+  left: 3px;
+  top: 0;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--negative);
+}
+
+.ed-key--gap {
+  border-right: 2px solid var(--border-strong);
+  height: 10px;
+  top: 0;
+  width: 12px;
+}
+
+.ed-key--zero {
+  border-top: 2px dotted var(--text-muted);
+  height: 0;
+  top: -2px;
+}
+
+.ed-footnote {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 0 6px 4px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+
+/* ============================================================
+   Scrolling layout on a desktop-width screen: large charts
+   ============================================================ */
+@media (min-width: 1101px) {
+  .ed-page {
+    padding: 20px 20px 56px;
+  }
+
+  .ed-head {
+    padding: 34px 40px 44px;
+  }
+
+  .ed-title {
+    margin-top: 12px;
+    font-size: 38px;
+  }
+
+  .ed-view-control {
+    position: absolute;
+    top: 12px;
+    right: 14px;
+    margin: 0;
+  }
+
+  .ed-controls {
+    gap: 12px 24px;
+    padding: 14px 22px;
+  }
+
+  .ed-kpis {
+    grid-template-columns: repeat(var(--ed-kpi-cols), minmax(0, 1fr));
+  }
+
+  .ed-kpi {
+    padding: 14px 18px 14px 24px;
+  }
+
+  .ed-kpi-value {
+    font-size: 30px;
+  }
+
+  .ed-tile {
+    padding: 16px 20px 10px;
+  }
+
+  .ed-tile-title {
+    font-size: 12px;
+  }
+
+  .ed-tile-chip {
+    font-size: 15px;
+  }
+
+  .ed-tile-sub {
+    font-size: 11.5px;
+  }
+
+  .ed-graph {
+    height: 340px !important;
+  }
+
+  .ed-detail-body {
+    grid-template-columns: minmax(240px, 0.5fr) minmax(0, 1.5fr);
+    gap: 18px;
+  }
+
+  .ed-detail-stats {
+    align-content: start;
+  }
+
+  .ed-mini-value {
+    font-size: 22px;
+  }
+}
+
+/* ============================================================
+   Dashboard layout: everything on one screen, no page scroll
+   ============================================================ */
+@media (min-width: 1180px) and (min-height: 601px) {
+  /* The shell forces min-height: 100vh on <main>; let the dashboard size it to
+     exactly the space left under the header so the page never scrolls. */
+  .app-main:has(.ed-page--dashboard) {
+    min-height: 0;
+  }
+
+  .ed-page--dashboard {
+    --ed-gap: 12px;
+
+    height: calc(100vh - var(--ed-header-h));
+    height: calc(100dvh - var(--ed-header-h));
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    padding: 12px 16px 14px;
+    overflow: hidden;
+  }
+
+  .ed-page--dashboard .ed-loading {
+    flex: 1 1 auto;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .ed-page--dashboard .ed-loading > div {
+    flex: 1 1 auto;
+    min-height: 0;
+  }
+
+  .ed-page--dashboard .ed-body {
+    height: 100%;
+    min-height: 0;
+    max-width: none;
+    margin: 0;
+  }
+
+  /* One header card: title row on top, controls row beneath. */
+  .ed-page--dashboard .ed-topbar {
+    flex: 0 0 auto;
+    gap: 8px;
+    padding: 10px 16px 12px;
+    overflow: hidden;
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--ed-radius);
+    box-shadow: var(--shadow-soft);
+    background:
+      radial-gradient(circle at 86% 0%, rgb(3 105 161 / 0.10), transparent 40%),
+      linear-gradient(180deg, var(--surface-raised) 0%, var(--surface-subtle) 100%);
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  }
+
+  .ed-page--dashboard .ed-topbar:hover {
+    border-color: rgb(3 105 161 / 0.42);
+    box-shadow: 0 12px 30px -12px rgb(3 105 161 / 0.22);
+  }
+
+  .ed-page--dashboard .ed-head,
+  .ed-page--dashboard .ed-controls {
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+    background: none;
+    overflow: visible;
+  }
+
+  .ed-page--dashboard .ed-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    min-height: 40px;
+    text-align: left;
+  }
+
+  .ed-page--dashboard .ed-eyebrow,
+  .ed-page--dashboard .ed-hero-description {
+    display: none;
+  }
+
+  .ed-page--dashboard .ed-title {
+    margin: 0;
+    font-size: 22px;
+  }
+
+  .ed-page--dashboard .ed-subtitle {
+    margin-top: 1px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .ed-page--dashboard .ed-title-text {
+    min-width: 0;
+  }
+
+  /* Explicit sizes: a canvas is a replaced element, so `auto` would mean its
+     intrinsic size, which algorithm-hero.js scales by the pixel ratio on every
+     resize (it would grow without bound on a HiDPI screen). */
+  .ed-page--dashboard .ed-trend {
+    inset: -10px -16px;
+    width: calc(100% + 32px);
+    height: calc(100% + 20px);
+    opacity: 0.3;
+    -webkit-mask-image: linear-gradient(90deg, transparent 20%, #000 75%);
+    mask-image: linear-gradient(90deg, transparent 20%, #000 75%);
+  }
+
+  .ed-page--dashboard .ed-view-control {
+    position: relative;
+    top: auto;
+    right: auto;
+    margin: 0;
+    flex: 0 0 auto;
+  }
+
+  .ed-page--dashboard .ed-controls {
+    flex-wrap: nowrap;
+    justify-content: flex-start;
+    gap: 16px;
+  }
+
+  .ed-page--dashboard .ed-refresh {
+    margin-left: auto;
+  }
+
+  .ed-page--dashboard .ed-kpis {
+    flex: 0 0 auto;
+    grid-template-columns: repeat(var(--ed-kpi-cols), minmax(0, 1fr));
+  }
+
+  .ed-page--dashboard .ed-kpi {
+    padding: 9px 14px 9px 20px;
+  }
+
+  .ed-page--dashboard .ed-kpi-value {
+    font-size: clamp(21px, 1.9vw, 27px);
+  }
+
+  .ed-page--dashboard .ed-grid {
+    flex: 1 1 auto;
+    min-height: 0;
+    grid-template-columns: repeat(var(--ed-grid-cols), minmax(0, 1fr));
+    grid-template-rows: repeat(2, minmax(0, 1fr));
+  }
+
+  .ed-page--dashboard .ed-tile {
+    padding: 9px 12px 6px;
+  }
+
+  .ed-page--dashboard .ed-tile-title {
+    font-size: 11px;
+  }
+
+  .ed-page--dashboard .ed-tile-chip {
+    font-size: 13px;
+  }
+
+  .ed-page--dashboard .ed-tile-sub {
+    font-size: 10.5px;
+  }
+
+  /* The graph must fill whatever height its grid cell gives it. */
+  .ed-page--dashboard .ed-graph {
+    flex: 1 1 auto;
+    min-height: 0;
+    height: 100% !important;
+  }
+
+  .ed-page--dashboard .ed-tile--detail {
+    grid-column: span 2;
+  }
+
+  .ed-page--dashboard .ed-tile--message {
+    grid-row: 1 / -1;
+  }
+
+  .ed-page--dashboard .ed-detail-body {
+    flex: 1 1 auto;
+    min-height: 0;
+    grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.6fr);
+    /* One row of exactly the space left, so the stat cards cannot push past it. */
+    grid-template-rows: minmax(0, 1fr);
+    gap: 10px;
+  }
+
+  .ed-page--dashboard .ed-detail-stats {
+    grid-auto-rows: minmax(0, 1fr);
+    align-content: stretch;
+    min-height: 0;
+  }
+
+  .ed-page--dashboard .ed-mini {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    justify-content: safe center;
+    overflow: hidden;
+  }
+
+  .ed-page--dashboard .ed-mini-value {
+    font-size: 17px;
+  }
+
+  /* "UNEMPLOYMENT" must fit the narrow stat cards beside the country chart. */
+  .ed-page--dashboard .ed-mini-label {
+    letter-spacing: 0.02em;
+  }
+
+  .ed-page--dashboard .ed-tile--notes {
+    display: flex;
+  }
+
+  /* Headings and lists keep their natural height: the tile clips what does not
+     fit instead of squashing the headings to nothing. */
+  .ed-page--dashboard .ed-tile--notes > * {
+    flex: none;
+  }
+
+  .ed-page--dashboard .ed-footnote {
+    display: none;
+  }
+}
+
+/* Dashboard on a short laptop screen. */
+@media (min-width: 1180px) and (min-height: 601px) and (max-height: 820px) {
+  .ed-page--dashboard {
+    --ed-gap: 10px;
+    padding: 10px 14px 12px;
+  }
+
+  .ed-page--dashboard .ed-topbar {
+    gap: 6px;
+    padding: 8px 14px 10px;
+  }
+
+  .ed-page--dashboard .ed-head {
+    min-height: 36px;
+  }
+
+  .ed-page--dashboard .ed-title {
+    font-size: 20px;
+  }
+
+  .ed-page--dashboard .ed-kpi {
+    padding-top: 7px;
+    padding-bottom: 7px;
+  }
+
+  .ed-page--dashboard .ed-kpi-value {
+    font-size: clamp(19px, 1.7vw, 24px);
+  }
+
+  .ed-page--dashboard .ed-tile {
+    padding: 8px 10px 4px;
+  }
+}
+
+/* Laptop screens: the spare notes cell keeps its notes; the chart key (which the
+   scrolling layout shows in its footnote) no longer fits beneath them. */
+@media (min-width: 1180px) and (min-height: 601px) and (max-height: 890px) {
+  .ed-page--dashboard .ed-tile--notes .ed-tile-title--spaced,
+  .ed-page--dashboard .ed-tile--notes .ed-notes-legend {
+    display: none;
+  }
+}
+
+/* Very short screens: drop the axis description, keep the source and date. */
+@media (min-width: 1180px) and (min-height: 601px) and (max-height: 760px) {
+  .ed-page--dashboard .ed-tile-axis,
+  .ed-page--dashboard .ed-tile-sep {
+    display: none;
+  }
+
+  .ed-page--dashboard .ed-notes-list li:nth-child(n+2) {
+    display: none;
+  }
+
+  /* The Euro Area country panel stacks two rows of stat cards in what is left. */
+  .ed-page--dashboard .ed-mini {
+    padding: 3px 8px;
+  }
+
+  .ed-page--dashboard .ed-mini-value {
+    font-size: 15px;
+    line-height: 1.1;
+  }
+}
+
+/* ---- Windows too small for the dashboard ------------------------------------------ */
+/* The one-screen layout needs 1180 x 601 px; below that the page is always the
+   scrolling layout.  The switch stays visible and shows what is in effect:
+   Scroll selected, Dashboard unavailable (with the reason underneath).  The
+   stored preference is not touched, so a large window later still opens on the
+   dashboard.  Keep these numbers in step with the dashboard media query. */
+@media (max-width: 1179px), (max-height: 600px) {
+  .ed-view-hint {
+    display: block;
+  }
+
+  .ed-view-control .ed-seg.ed-seg.ed-seg.ed-seg > label:nth-child(1) {
+    opacity: 0.5;
+    pointer-events: none;
+    color: var(--text-secondary);
+    background: transparent;
+    box-shadow: none;
+  }
+
+  .ed-view-control .ed-seg.ed-seg.ed-seg.ed-seg > label:nth-child(2) {
+    color: var(--on-accent);
+    background: var(--interactive);
+    box-shadow: 0 2px 8px rgb(3 105 161 / 0.32);
+  }
+}
+
+/* ---- Tablets and phones: the comparison legend moves under the title ------------- */
+/* Beside the title it takes about 290px, leaving "REAL GDP GRO…" in a two-column
+   grid and no room at all on a phone. */
+@media (max-width: 1100px) {
+  .ed-tile-head--legend {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .ed-legend {
+    flex-wrap: wrap;
+    gap: 3px 10px;
+  }
+}
+
+/* The four country rows of a comparison card need about 75px each, two per row. */
+@media (max-width: 400px) {
+  .ed-cmp {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 3px 0;
+  }
+}
+
+/* ---- Phones ------------------------------------------------------------------- */
+@media (max-width: 576px) {
+  .ed-kpis {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  .ed-kpi:last-child:nth-child(odd) {
+    grid-column: 1 / -1;
+  }
+
+  .ed-controls {
+    gap: 10px 12px;
+    padding: 12px;
+  }
+
+  .ed-seg > label {
+    padding: 5px 10px;
+  }
+
+  .ed-seg {
+    border-radius: 18px;
+  }
+
+  .ed-cmp {
+    gap: 3px 10px;
+  }
+
+  /* One tile per row: two columns leave each chart about 165px wide, too narrow
+     for a title, a source line or four legend entries. */
+  .ed-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .ed-tile {
+    padding: 12px 12px 6px;
+  }
+
+  .ed-graph {
+    height: 240px !important;
+  }
+}
+
+/* Windows High Contrast and other forced-colour themes drop backgrounds and
+   shadows, which is all that marks the selected option and the refresh icon. */
+@media (forced-colors: active) {
+  .ed-seg.ed-seg.ed-seg > label:has(input:checked),
+  .ed-context--comparison .ed-seg.ed-seg.ed-seg > label:has(input:checked) {
+    forced-color-adjust: none;
+    background: Highlight;
+    color: HighlightText;
+    box-shadow: none;
+  }
+
+  .ed-seg > label {
+    border: 1px solid transparent;
+  }
+
+  .ed-context--comparison .ed-seg > label::before {
+    border-color: CanvasText;
+  }
+
+  .ed-context--comparison .ed-seg > label:has(input:checked)::before {
+    background: HighlightText;
+    border-color: HighlightText;
+  }
+
+  .ed-refresh::before {
+    forced-color-adjust: none;
+    background: ButtonText;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ed-card,
+  .ed-seg > label,
+  .ed-refresh {
+    transition: none;
+  }
+
+  .ed-spinner::before,
+  .ed-skeleton {
+    animation: none;
+  }
+}

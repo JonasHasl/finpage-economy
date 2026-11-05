@@ -1,0 +1,26 @@
+"""Shared visual tokens for server-rendered Dash and Plotly components."""
+
+LIGHT_THEME = {
+    "page": "#F4F8FC",
+    "surface": "#FFFFFF",
+    "surface_subtle": "#EAF1F7",
+    "text_primary": "#102A43",
+    "text_secondary": "#486581",
+    "text_muted": "#526B80",
+    "border": "#C9D8E5",
+    "border_strong": "#7B8798",
+    "grid": "#DCE6EF",
+    "blue": "#0369A1",
+    "blue_soft": "#E0F2FE",
+    "green": "#047857",
+    "green_soft": "#E8F5EE",
+    "red": "#B91C1C",
+    "red_soft": "#FDECEA",
+    "amber": "#A16207",
+    "violet": "#6D28D9",
+    "cyan": "#0E7490",
+    "rose": "#BE123C",
+    "tooltip_bg": "#102A43",
+    "tooltip_text": "#F8FAFC",
+    "transparent": "rgba(0,0,0,0)",
+}
